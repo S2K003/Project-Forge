@@ -1,0 +1,60 @@
+@inject NavigationManager Nav
+
+<div class="shell">
+    <div class="shell__brand">
+        <div class="brand__mark">F</div>
+        <div class="brand__name">ForgeOps<span> / control</span></div>
+    </div>
+
+    <header class="shell__topbar">
+        <div class="topbar__context">
+            <span>Project</span>
+            <span class="topbar__project">@ProjectName</span>
+            <span class="muted small">· @Environment</span>
+        </div>
+        <ModeBadge />
+    </header>
+
+    <nav class="shell__rail" aria-label="Sections">
+        <div class="nav__section">Journey</div>
+        @foreach (var item in _navItems)
+        {
+            <a class="nav__link @(item.Kind == ActiveKind ? "active" : null)"
+               href="@ModeRoot" @onclick="() => OnNavigate.InvokeAsync(item.Kind)" @onclick:preventDefault>
+                <span class="nav__dot"></span>@item.Label
+            </a>
+        }
+
+        <div class="nav__section mt-3">Modes</div>
+        <a class="nav__link" href="demo">◆ Demo Mode</a>
+        <a class="nav__link" href="live">● Live Mode</a>
+    </nav>
+
+    <main class="shell__main">
+        <div class="workspace">
+            @ChildContent
+        </div>
+    </main>
+</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string ProjectName { get; set; } = "CustomerHub";
+    [Parameter] public string Environment { get; set; } = "demo";
+    [Parameter] public JourneyStepKind? ActiveKind { get; set; }
+    [Parameter] public EventCallback<JourneyStepKind> OnNavigate { get; set; }
+
+    private string ModeRoot => Nav.Uri.Contains("/live", StringComparison.OrdinalIgnoreCase) ? "live" : "demo";
+
+    private readonly (JourneyStepKind Kind, string Label)[] _navItems =
+    [
+        (JourneyStepKind.Requirement, "Requirements"),
+        (JourneyStepKind.Specification, "Specification"),
+        (JourneyStepKind.ArchitectureAnalysis, "Architecture"),
+        (JourneyStepKind.PullRequest, "Pull Requests"),
+        (JourneyStepKind.QualityGates, "Quality"),
+        (JourneyStepKind.AiReview, "AI Activity"),
+        (JourneyStepKind.HumanDecision, "Decisions"),
+        (JourneyStepKind.EngineeringHealth, "Health"),
+    ];
+}

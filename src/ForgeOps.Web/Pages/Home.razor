@@ -1,0 +1,62 @@
+@page "/"
+@inject NavigationManager Nav
+@inject ForgeOpsWebOptions Options
+@inject AppModeService Mode
+
+<PageTitle>ForgeOps</PageTitle>
+
+<div class="landing">
+    <div class="landing__inner">
+        <div class="row" style="justify-content:center">
+            <div class="brand__mark" style="width:34px;height:34px;font-size:17px">F</div>
+            <span class="brand__name" style="font-size:18px">ForgeOps</span>
+        </div>
+
+        <h1 class="landing__title mt-3">Mission control for AI-assisted engineering</h1>
+        <p class="landing__sub">
+            Requirements become governed, testable, reviewable work — with deterministic evidence and
+            human judgment kept above every AI recommendation.
+        </p>
+
+        <div class="modecards">
+            <div class="panel modecard" @onclick='() => Enter(AppMode.Demo)'>
+                <h3 class="is-ai">◆ Demo Mode</h3>
+                <p>
+                    The complete CustomerHub walkthrough with seeded data. No backend, no AI Bridge,
+                    no network — works anywhere, every time. AI steps replay clearly-labelled recordings.
+                </p>
+                <div class="chip is-ai mt-2">Always available</div>
+            </div>
+
+            <div class="panel modecard @(Options.HasApi ? null : "is-disabled")"
+                 @onclick="EnterLive" style="@(Options.HasApi ? null : "opacity:.5;cursor:not-allowed")">
+                <h3 class="is-info">● Live Mode</h3>
+                <p>
+                    The real product: real API, real database, a real call to <code>qwen3:8b</code> through
+                    the AI Bridge. Requires a verified bridge connection — losing it locks the app.
+                </p>
+                <div class="chip mt-2">@(Options.HasApi ? "Requires AI Bridge" : "No API configured for this deploy")</div>
+            </div>
+        </div>
+
+        <p class="small muted mt-4">
+            Same journey, same components in both modes — only the data source and the mode badge differ.
+        </p>
+    </div>
+</div>
+
+@code {
+    private void Enter(AppMode mode)
+    {
+        Mode.Set(mode);
+        Nav.NavigateTo(mode == AppMode.Demo ? "demo" : "live");
+    }
+
+    private void EnterLive()
+    {
+        if (Options.HasApi)
+        {
+            Enter(AppMode.Live);
+        }
+    }
+}

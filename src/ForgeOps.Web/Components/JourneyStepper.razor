@@ -1,0 +1,36 @@
+@* Horizontal journey stepper — the visible spine of the §4 story. *@
+
+<div class="stepper" role="list">
+    @for (var i = 0; i < Steps.Count; i++)
+    {
+        var index = i;
+        var step = Steps[index];
+        <div class="stepnode @StateClass(step.State) @(index == CurrentIndex ? "is-active" : null)" role="listitem">
+            <button class="stepnode__bullet" title="@step.Title"
+                    aria-label="@step.Title"
+                    disabled="@(step.State == JourneyStepState.Locked)"
+                    @onclick="() => OnSelect.InvokeAsync(index)">
+                @(step.State == JourneyStepState.Complete ? "✓" : (index + 1).ToString())
+            </button>
+            <span class="stepnode__label">@step.Title</span>
+            @if (index < Steps.Count - 1)
+            {
+                <span class="stepnode__rail"></span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<JourneyStep> Steps { get; set; } = [];
+    [Parameter] public int CurrentIndex { get; set; }
+    [Parameter] public EventCallback<int> OnSelect { get; set; }
+
+    private static string? StateClass(JourneyStepState state) => state switch
+    {
+        JourneyStepState.Complete => "is-complete",
+        JourneyStepState.Active => "is-active",
+        JourneyStepState.Blocked => "is-blocked",
+        _ => null
+    };
+}

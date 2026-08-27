@@ -1,0 +1,29 @@
+@page "/demo"
+@inject AppModeService Mode
+@inject JourneyPlayer Player
+
+<PageTitle>ForgeOps · Demo Mode</PageTitle>
+
+<AppShell ProjectName="CustomerHub" Environment="demo" OnNavigate="GoToKind">
+    <JourneyView />
+</AppShell>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Mode.Set(AppMode.Demo);
+        if (Player.Definition is null || Player.Mode != AppMode.Demo)
+        {
+            Player.Load(AppMode.Demo);
+        }
+    }
+
+    private void GoToKind(JourneyStepKind kind)
+    {
+        var index = Player.Steps.ToList().FindIndex(s => s.Kind == kind);
+        if (index >= 0)
+        {
+            Player.GoTo(index);
+        }
+    }
+}

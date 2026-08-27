@@ -1,0 +1,29 @@
+@* Evidence Rail (ProjectForge.md §23.6, §15): Finding → Evidence → Rule → Source → Decision. *@
+
+<div class="panel panel--strong">
+    <div class="panel__head"><span class="panel__title">Evidence</span></div>
+    <div class="panel__pad">
+        @if (Nodes.Count == 0)
+        {
+            <div class="muted small">Evidence for this step appears here as it is produced.</div>
+        }
+        else
+        {
+            <div class="evrail">
+                @foreach (var n in Nodes)
+                {
+                    <div class="evrail__node @(n.IsDecision ? "is-decision" : null)">
+                        <div class="evrail__kicker">@n.Kicker</div>
+                        <div class="evrail__body @(n.Mono ? "mono" : null)">@n.Body</div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    public sealed record Node(string Kicker, string Body, bool Mono = false, bool IsDecision = false);
+
+    [Parameter] public IReadOnlyList<Node> Nodes { get; set; } = [];
+}

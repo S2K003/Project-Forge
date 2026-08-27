@@ -1,0 +1,43 @@
+@* The AI interaction audit surface (ProjectForge.md §2.1, §45). *@
+
+@if (Interaction is not null)
+{
+    <div class="panel panel__pad mt-3">
+        <div class="spread">
+            <span class="panel__title">AI Interaction</span>
+            @if (Interaction.Simulated)
+            {
+                <span class="chip is-ai">Simulated · recorded</span>
+            }
+            else
+            {
+                <span class="chip is-pass">Live call</span>
+            }
+        </div>
+        <div class="grid grid--2 mt-2 small">
+            <div><span class="muted">Provider</span><br />@Interaction.Provider</div>
+            <div><span class="muted">Model</span><br />@Interaction.Model @(Interaction.ModelVersion is { Length: > 0 } v ? $"({v})" : null)</div>
+            <div><span class="muted">Prompt version</span><br />@Interaction.PromptVersion</div>
+            <div><span class="muted">Latency</span><br />@Interaction.LatencyMs ms</div>
+            <div>
+                <span class="muted">Structured output</span><br />
+                @if (Interaction.Validation.Valid)
+                {
+                    <span class="is-pass">✓ passed schema validation</span>
+                }
+                else
+                {
+                    <span class="is-fail">✗ @string.Join("; ", Interaction.Validation.Errors)</span>
+                }
+            </div>
+            <div>
+                <span class="muted">Model confidence</span><br />
+                @(Interaction.Confidence is { } c ? $"{c:P0} (self-reported)" : "—")
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public AiInteractionRecord? Interaction { get; set; }
+}

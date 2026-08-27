@@ -1,0 +1,47 @@
+@implements IDisposable
+@inject AppModeService Mode
+@inject AiBridgeMonitor Bridge
+
+@if (Mode.Current == AppMode.Live)
+{
+    var down = Bridge.Connection == BridgeConnection.Disconnected;
+    <span class="modebadge modebadge--live @(down ? "is-down" : null)" role="status"
+          aria-label="@(down ? "Live Mode, AI Bridge disconnected" : "Live Mode, AI Bridge connected")">
+        <span class="modebadge__dot"></span>
+        @if (down)
+        {
+            <text>LIVE — AI BRIDGE OFFLINE</text>
+        }
+        else if (Bridge.Connection == BridgeConnection.Connected)
+        {
+            <text>LIVE — AI BRIDGE CONNECTED</text>
+        }
+        else
+        {
+            <text>LIVE — CHECKING BRIDGE…</text>
+        }
+    </span>
+}
+else if (Mode.Current == AppMode.Demo)
+{
+    <span class="modebadge modebadge--demo" role="status" aria-label="Demo Mode, simulated data">
+        <span class="modebadge__dot"></span>
+        DEMO MODE — SIMULATED DATA
+    </span>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        Mode.Changed += OnChanged;
+        Bridge.Changed += OnChanged;
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Mode.Changed -= OnChanged;
+        Bridge.Changed -= OnChanged;
+    }
+}

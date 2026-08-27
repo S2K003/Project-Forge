@@ -1,0 +1,53 @@
+@* Engineering Health Orb (ProjectForge.md §23.6, §14) — deterministic segments around the perimeter. *@
+
+<div class="orb" role="img" aria-label="Engineering health score @Score out of 100">
+    <svg width="168" height="168" viewBox="0 0 168 168">
+        <circle cx="84" cy="84" r="@Radius" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="10" />
+        @{
+            double accum = 0;
+        }
+        @foreach (var seg in Segments())
+        {
+            <circle cx="84" cy="84" r="@Radius" fill="none"
+                    stroke="@seg.Color" stroke-width="10" stroke-linecap="butt"
+                    stroke-dasharray="@Fmt(seg.Arc - 2) @Fmt(Circumference - seg.Arc + 2)"
+                    stroke-dashoffset="@Fmt(-accum)" />
+            accum += seg.Arc;
+        }
+    </svg>
+    <div class="orb__center">
+        <div class="orb__score">@Score</div>
+        <div class="orb__label">HEALTH</div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int Score { get; set; }
+    [Parameter] public IReadOnlyList<HealthComponent> Components { get; set; } = [];
+
+    private const double Radius = 74;
+    private double Circumference => 2 * Math.PI * Radius;
+
+    private IEnumerable<(double Arc, string Color)> Segments()
+    {
+        if (Components.Count == 0)
+        {
+            yield return (Circumference * Score / 100.0, ColorFor(Score));
+            yield break;
+        }
+
+        foreach (var c in Components)
+        {
+            yield return (Circumference * c.Weight, ColorFor(c.Score));
+        }
+    }
+
+    private static string ColorFor(int score) => score switch
+    {
+        >= 85 => "#49cf89",
+        >= 70 => "#e6b450",
+        _ => "#f0556e"
+    };
+
+    private static string Fmt(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}

@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ForgeOps.AI/ForgeOps.AI.csproj" />
+    <Project Path="src/ForgeOps.Api/ForgeOps.Api.csproj" />
+    <Project Path="src/ForgeOps.Contracts/ForgeOps.Contracts.csproj" />
+    <Project Path="src/ForgeOps.Demo/ForgeOps.Demo.csproj" />
+    <Project Path="src/ForgeOps.Web/ForgeOps.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ForgeOps.UnitTests/ForgeOps.UnitTests.csproj" />
+  </Folder>
+</Solution>

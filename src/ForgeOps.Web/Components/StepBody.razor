@@ -1,0 +1,235 @@
+@* Renders the workspace content for one journey step. Same component in both modes. *@
+
+@if (Step is null)
+{
+    return;
+}
+
+<div class="stack">
+    <div>
+        <h1 style="font-size:22px">@Step.Title</h1>
+        <p class="muted mt-1">@Step.Caption</p>
+    </div>
+
+    @switch (Step.Kind)
+    {
+        case JourneyStepKind.SignIn:
+            <div class="panel panel__pad" style="max-width:420px">
+                <div class="field"><label>User</label><div class="input">demo.engineer@@forgeops.dev</div></div>
+                <div class="field mt-2"><label>Workspace</label><div class="input">CustomerHub</div></div>
+                <div class="small muted mt-2">@ModeSignInHint</div>
+            </div>
+            break;
+
+        case JourneyStepKind.Requirement:
+            <div class="panel panel--strong panel__pad">
+                <div class="panel__title">Requirement</div>
+                <p style="font-size:18px;line-height:1.5" class="mt-2">“@Definition?.RequirementText”</p>
+            </div>
+            break;
+
+        case JourneyStepKind.Specification when Step.Payload.Specification is { } spec:
+            <div class="panel panel--strong panel__pad">
+                <div class="panel__title">@spec.Title</div>
+                <p class="mt-2">@spec.Summary</p>
+
+                <div class="panel__title mt-3">Acceptance criteria</div>
+                <ul class="list-reset stack mt-2">
+                    @foreach (var ac in spec.AcceptanceCriteria)
+                    {
+                        <li><strong class="is-info">@ac.Id</strong> &nbsp;@ac.Statement</li>
+                    }
+                </ul>
+
+                @if (spec.OutOfScope.Count > 0)
+                {
+                    <div class="panel__title mt-3">Out of scope</div>
+                    <ul class="stack mt-1">@foreach (var o in spec.OutOfScope) { <li class="muted">@o</li> }</ul>
+                }
+                @if (spec.OpenQuestions.Count > 0)
+                {
+                    <div class="panel__title mt-3">Open questions</div>
+                    <ul class="stack mt-1">@foreach (var q in spec.OpenQuestions) { <li class="is-warn">@q</li> }</ul>
+                }
+            </div>
+            <AiInteractionCard Interaction="Step.Payload.AiInteraction" />
+            break;
+
+        case JourneyStepKind.HumanReview:
+            <DecisionRibbon Simulated="Sim(Step.Payload.AiInteraction)"
+                            Decision="Step.Payload.AiInteraction?.Decision"
+                            PendingHint="the specification cannot be approved by the model.">
+                <AiContent>
+                    Drafted a specification with @(Definition?.Steps.FirstOrDefault(s => s.Kind == JourneyStepKind.Specification)?.Payload.Specification?.AcceptanceCriteria.Count ?? 0)
+                    testable acceptance criteria and 2 open questions.
+                </AiContent>
+            </DecisionRibbon>
+            break;
+
+        case JourneyStepKind.ArchitectureAnalysis:
+            <div class="stack">
+                @foreach (var f in Step.Payload.ArchitectureFindings ?? [])
+                {
+                    <div class="panel panel--focus panel__pad">
+                        <div class="spread">
+                            <strong>@f.RuleId — @f.Name</strong>
+                            <SeverityBadge Severity="f.Severity" />
+                        </div>
+                        <p class="mt-2">@f.Description</p>
+                        <div class="panel__title mt-2">Evidence</div>
+                        @foreach (var e in f.Evidence)
+                        {
+                            <div class="mono muted">@e</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(f.RemediationGuidance))
+                        {
+                            <div class="mt-2"><span class="muted">Remediation:</span> @f.RemediationGuidance</div>
+                        }
+                    </div>
+                }
+            </div>
+            break;
+
+        case JourneyStepKind.PullRequest when Step.Payload.PullRequest is { } pr:
+            <div class="panel panel--strong panel__pad">
+                <div class="spread">
+                    <strong style="font-size:16px">PR #@pr.Number · @pr.Title</strong>
+                    <span class="chip">@pr.Branch</span>
+                </div>
+                <div class="row mt-2 small muted">
+                    <span>@pr.FilesChanged files changed</span>
+                    <span class="is-pass">+@pr.Additions</span>
+                    <span class="is-fail">−@pr.Deletions</span>
+                </div>
+                <ul class="list-reset mt-2 mono small">
+                    @foreach (var file in pr.ChangedFiles)
+                    {
+                        <li class="muted">@file</li>
+                    }
+                </ul>
+            </div>
+            break;
+
+        case JourneyStepKind.QualityGates:
+            <div class="panel panel--strong panel__pad">
+                <GateTimeline Gates="Step.Payload.Gates ?? []" />
+            </div>
+            break;
+
+        case JourneyStepKind.Merge:
+            <div class="panel panel--strong panel__pad">
+                <GateTimeline Gates="Step.Payload.Gates ?? []" />
+            </div>
+            @if (Step.Payload.PullRequest is { } merged)
+            {
+                <div class="panel panel__pad mt-3 is-pass">✓ PR #@merged.Number merged to main.</div>
+            }
+            break;
+
+        case JourneyStepKind.AiReview:
+            <div class="stack">
+                @foreach (var f in Step.Payload.ReviewFindings ?? [])
+                {
+                    <div class="panel panel--focus panel__pad">
+                        <div class="spread">
+                            <SeverityBadge Severity="f.Severity" />
+                            <span class="chip is-ai">@f.Classification</span>
+                        </div>
+                        <p class="mt-2"><strong>@f.Finding</strong></p>
+                        <div class="mono muted mt-1">@f.Evidence</div>
+                        <div class="mt-2"><span class="muted">Recommendation:</span> @f.Recommendation</div>
+                        <div class="small muted mt-1">Model confidence @f.Confidence.ToString("P0") — self-reported, not a probability.</div>
+                    </div>
+                }
+            </div>
+            <AiInteractionCard Interaction="Step.Payload.AiInteraction" />
+            break;
+
+        case JourneyStepKind.HumanDecision:
+            <DecisionRibbon Simulated="Sim(Step.Payload.AiInteraction)"
+                            Decision="Step.Payload.AiInteraction?.Decision"
+                            PendingHint="the model cannot accept or reject its own findings.">
+                <AiContent>
+                    Raised 1 CRITICAL, 1 HIGH, 1 MEDIUM and 1 suggestion. The CRITICAL (duplicate points
+                    crediting) is corroborated by deterministic evidence.
+                </AiContent>
+            </DecisionRibbon>
+            break;
+
+        case JourneyStepKind.Telemetry:
+            <div class="panel panel--strong panel__pad">
+                <table style="width:100%;border-collapse:collapse">
+                    @foreach (var t in Step.Payload.Telemetry ?? [])
+                    {
+                        <tr style="border-bottom:1px solid var(--glass-border)">
+                            <td class="mono small" style="padding:9px 0">@t.Metric</td>
+                            <td style="padding:9px 0;text-align:right"><strong>@t.Value</strong></td>
+                            <td class="muted small" style="padding:9px 0 9px 14px">@t.Detail</td>
+                        </tr>
+                    }
+                </table>
+            </div>
+            break;
+
+        case JourneyStepKind.EngineeringHealth when Step.Payload.Health is { } health:
+            <div class="panel panel--focus panel__pad">
+                <div class="row" style="align-items:flex-start;gap:28px">
+                    <HealthOrb Score="health.Score" Components="health.Components" />
+                    <div style="flex:1">
+                        <div class="panel__title">Why?</div>
+                        <ul class="list-reset stack mt-2">
+                            @foreach (var r in health.Reasons)
+                            {
+                                <li class="@ReasonClass(r.Kind)">@ReasonGlyph(r.Kind) @r.Text</li>
+                            }
+                        </ul>
+                        <div class="panel__title mt-3">Weighting</div>
+                        <ul class="list-reset stack mt-2 small">
+                            @foreach (var c in health.Components)
+                            {
+                                <li class="spread">
+                                    <span class="muted">@c.Name (@c.Weight.ToString("P0"))</span>
+                                    <span>@c.Score</span>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            break;
+    }
+
+    @if (Step.Payload.Notes is { Count: > 0 } notes)
+    {
+        <div class="panel panel__pad">
+            <div class="panel__title">Notes</div>
+            <ul class="stack mt-2 small muted">@foreach (var n in notes) { <li>@n</li> }</ul>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public JourneyStep? Step { get; set; }
+    [Parameter] public JourneyDefinition? Definition { get; set; }
+    [Parameter] public AppMode Mode { get; set; }
+
+    private string ModeSignInHint => Mode == AppMode.Demo
+        ? "Demo Mode entry point — not real authentication."
+        : "Live Mode: this is real authentication with role-based access in the full product.";
+
+    private static bool Sim(AiInteractionRecord? r) => r?.Simulated ?? false;
+
+    private static string ReasonClass(ReasonKind k) => k switch
+    {
+        ReasonKind.Pass => "is-pass",
+        ReasonKind.Warn => "is-warn",
+        _ => "is-fail"
+    };
+
+    private static string ReasonGlyph(ReasonKind k) => k switch
+    {
+        ReasonKind.Pass => "✓",
+        ReasonKind.Warn => "⚠",
+        _ => "✗"
+    };
+}

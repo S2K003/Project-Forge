@@ -1,0 +1,66 @@
+@page "/live"
+@implements IAsyncDisposable
+@inject AppModeService Mode
+@inject JourneyPlayer Player
+@inject AiBridgeMonitor Bridge
+
+<PageTitle>ForgeOps · Live Mode</PageTitle>
+
+<AppShell ProjectName="CustomerHub" Environment="live" OnNavigate="GoToKind">
+    <JourneyView OnBridgeOffline="HandleBridgeOffline" />
+</AppShell>
+
+@if (Gated)
+{
+    <ConnectionGate Detail="@Bridge.LastStatus.Detail" Retrying="_retrying" OnRetry="Retry" />
+}
+
+@code {
+    private bool _retrying;
+
+    private bool Gated => Bridge.Connection == BridgeConnection.Disconnected;
+
+    protected override void OnInitialized()
+    {
+        Mode.Set(AppMode.Live);
+        Bridge.Changed += OnChanged;
+        Bridge.Start();
+
+        if (Player.Definition is null || Player.Mode != AppMode.Live)
+        {
+            Player.Load(AppMode.Live);
+        }
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task Retry()
+    {
+        _retrying = true;
+        try
+        {
+            await Bridge.CheckNowAsync();
+        }
+        finally
+        {
+            _retrying = false;
+        }
+    }
+
+    private void HandleBridgeOffline(string detail) => Bridge.ForceDisconnected(detail);
+
+    private void GoToKind(JourneyStepKind kind)
+    {
+        var index = Player.Steps.ToList().FindIndex(s => s.Kind == kind);
+        if (index >= 0)
+        {
+            Player.GoTo(index);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Bridge.Changed -= OnChanged;
+        await Bridge.StopAsync();
+    }
+}

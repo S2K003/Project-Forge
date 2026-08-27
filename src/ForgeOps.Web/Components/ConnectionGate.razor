@@ -1,0 +1,34 @@
+@* Live Mode Connection Gate (ProjectForge.md §9A.1) — full-screen, blocking.
+   While gated the app is intentionally unusable. Demo Mode is always one click away. *@
+@inject NavigationManager Nav
+
+<div class="gateoverlay" role="alertdialog" aria-modal="true" aria-labelledby="gate-title">
+    <div class="panel panel--focus panel__pad gatecard">
+        <div class="orb__label">Live Mode</div>
+        <h2 id="gate-title" class="is-fail">AI Bridge Offline</h2>
+        <p class="muted mt-2">@Detail</p>
+        <p class="small muted mt-2">
+            Live Mode requires a verified connection to the local <code>qwen3:8b</code> model through the
+            AI Bridge. The developer's machine or tunnel is not reachable right now.
+        </p>
+
+        <div class="row mt-3" style="justify-content:center">
+            <button class="btn" @onclick="OnRetry" disabled="@Retrying">
+                @(Retrying ? "Checking…" : "Retry connection")
+            </button>
+            <button class="btn btn--ai" @onclick='() => Nav.NavigateTo("demo")'>
+                Switch to Demo Mode
+            </button>
+        </div>
+
+        <p class="small muted mt-3">
+            Demo Mode replays the exact same CustomerHub walkthrough with seeded data — no live dependency.
+        </p>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Detail { get; set; } = "The AI Bridge did not respond.";
+    [Parameter] public bool Retrying { get; set; }
+    [Parameter] public EventCallback OnRetry { get; set; }
+}

@@ -1,0 +1,15 @@
+<span class="badge @Class" aria-label="severity @Severity">
+    <span class="badge__dot"></span>@Severity.ToString().ToUpperInvariant()
+</span>
+
+@code {
+    [Parameter] public FindingSeverity Severity { get; set; }
+
+    private string Class => Severity switch
+    {
+        FindingSeverity.Critical or FindingSeverity.High => "is-fail",
+        FindingSeverity.Medium => "is-warn",
+        FindingSeverity.Low => "is-info",
+        _ => "is-muted"
+    };
+}

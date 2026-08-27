@@ -1,0 +1,50 @@
+@* AI Decision Ribbon (ProjectForge.md §23.6, §2.1) — AI output is never confused with system state. *@
+
+<div class="ribbon">
+    <div class="ribbon__band ribbon__band--ai">
+        <div class="ribbon__kicker is-ai">
+            AI Recommendation
+            @if (Simulated)
+            {
+                <span class="chip is-ai" style="margin-left:8px">Simulated</span>
+            }
+        </div>
+        <div>@AiContent</div>
+    </div>
+
+    <div class="ribbon__arrow" aria-hidden="true">→</div>
+
+    <div class="ribbon__band ribbon__band--human">
+        <div class="ribbon__kicker is-info">Human Decision</div>
+        @if (Decision is not null)
+        {
+            <div>
+                <strong>@DecisionLabel(Decision.Kind)</strong> · @Decision.DecidedBy
+                <div class="small muted mt-1">@Decision.DecidedAt.ToString("dd MMM yyyy HH:mm")</div>
+                @if (!string.IsNullOrWhiteSpace(Decision.Reason))
+                {
+                    <div class="mt-1">@Decision.Reason</div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="muted">Awaiting a human decision — @PendingHint</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public RenderFragment? AiContent { get; set; }
+    [Parameter] public HumanDecision? Decision { get; set; }
+    [Parameter] public bool Simulated { get; set; }
+    [Parameter] public string PendingHint { get; set; } = "nothing proceeds until an engineer decides.";
+
+    private static string DecisionLabel(HumanDecisionKind kind) => kind switch
+    {
+        HumanDecisionKind.Accepted => "Accepted",
+        HumanDecisionKind.Rejected => "Rejected",
+        HumanDecisionKind.AcceptedWithModification => "Accepted with changes",
+        _ => "Pending"
+    };
+}

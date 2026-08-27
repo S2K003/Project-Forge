@@ -1,0 +1,19 @@
+<div class="panel panel--focus">
+    <div class="panel__pad">
+        <div class="thinking">
+            <span class="thinking__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span>@Label</span>
+        </div>
+        <div class="mt-3 stack" aria-hidden="true">
+            <div class="shimmer" style="height:14px;width:72%"></div>
+            <div class="shimmer" style="height:14px;width:54%"></div>
+            <div class="shimmer" style="height:14px;width:63%"></div>
+        </div>
+        <div class="small muted mt-2">@Sub</div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = "Working…";
+    [Parameter] public string Sub { get; set; } = "The interaction pattern is identical in Live and Demo Mode.";
+}

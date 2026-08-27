@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>ForgeOps.Demo</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ForgeOps.Contracts\ForgeOps.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

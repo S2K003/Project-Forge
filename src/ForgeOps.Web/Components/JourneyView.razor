@@ -1,0 +1,169 @@
+@implements IDisposable
+@inject JourneyPlayer Player
+
+<JourneyStepper Steps="Player.Steps" CurrentIndex="Player.CurrentIndex" OnSelect="Player.GoTo" />
+
+@if (_error is not null)
+{
+    <div class="panel panel__pad is-fail mt-2" role="alert">
+        <strong>Live AI call failed.</strong> @_error
+        <div class="small muted mt-1">Deterministic steps are unaffected. Retry, or switch to Demo Mode for the full recorded walkthrough.</div>
+    </div>
+}
+
+<div class="grid mt-3" style="grid-template-columns: minmax(0, 1fr) 320px;">
+    <div>
+        @if (Player.IsThinking)
+        {
+            <AiThinking Label="@(Player.ThinkingLabel ?? "Working…")" />
+        }
+        else
+        {
+            <StepBody Step="Player.Current" Definition="Player.Definition" Mode="Player.Mode" />
+        }
+
+        <div class="row mt-4">
+            <button class="btn" @onclick="Back" disabled="@(Player.CurrentIndex == 0 || Player.IsThinking)">← Back</button>
+
+            @if (Player.IsLastStep)
+            {
+                <button class="btn" @onclick="Restart" disabled="@Player.IsThinking">↻ Restart walkthrough</button>
+            }
+            else
+            {
+                <button class="btn btn--primary" @onclick="Next" disabled="@Player.IsThinking">
+                    @NextLabel →
+                </button>
+            }
+
+            <span class="muted small">Step @(Player.CurrentIndex + 1) of @Player.Steps.Count</span>
+        </div>
+    </div>
+
+    <EvidenceRail Nodes="EvidenceNodes()" />
+</div>
+
+@code {
+    [Parameter] public EventCallback<string> OnBridgeOffline { get; set; }
+
+    private string? _error;
+
+    protected override void OnInitialized() => Player.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task Next()
+    {
+        _error = null;
+        var result = await Player.AdvanceAsync();
+        switch (result.Kind)
+        {
+            case AdvanceResultKind.BridgeOffline:
+                await OnBridgeOffline.InvokeAsync(result.Detail ?? "AI Bridge is offline.");
+                break;
+            case AdvanceResultKind.ModelError:
+                _error = result.Detail;
+                break;
+        }
+    }
+
+    private void Back() => Player.GoTo(Player.CurrentIndex - 1);
+
+    private void Restart()
+    {
+        _error = null;
+        Player.Reset();
+    }
+
+    private string NextLabel => Player.Steps.Count > Player.CurrentIndex + 1
+        ? Player.Steps[Player.CurrentIndex + 1].Kind switch
+        {
+            JourneyStepKind.Specification => "Generate specification",
+            JourneyStepKind.HumanReview => "Review & approve",
+            JourneyStepKind.ArchitectureAnalysis => "Analyze architecture",
+            JourneyStepKind.PullRequest => "Open pull request",
+            JourneyStepKind.QualityGates => "Run quality gates",
+            JourneyStepKind.AiReview => "Run AI review",
+            JourneyStepKind.HumanDecision => "Record human decision",
+            JourneyStepKind.Merge => "Fix blockers & merge",
+            JourneyStepKind.Telemetry => "Show telemetry",
+            JourneyStepKind.EngineeringHealth => "Show engineering health",
+            _ => "Continue"
+        }
+        : "Continue";
+
+    private IReadOnlyList<EvidenceRail.Node> EvidenceNodes()
+    {
+        var step = Player.Current;
+        if (step is null)
+        {
+            return [];
+        }
+
+        var nodes = new List<EvidenceRail.Node>();
+
+        switch (step.Kind)
+        {
+            case JourneyStepKind.Specification when step.Payload.AiInteraction is { } ai:
+                nodes.Add(new("Finding", $"{step.Payload.Specification?.AcceptanceCriteria.Count} acceptance criteria drafted"));
+                nodes.Add(new("Source", $"{ai.Provider} · {ai.Model} · prompt {ai.PromptVersion}", Mono: true));
+                nodes.Add(new("Validation", ai.Validation.Valid ? "Passed deterministic schema check (§9.2)" : string.Join("; ", ai.Validation.Errors)));
+                break;
+
+            case JourneyStepKind.ArchitectureAnalysis:
+                foreach (var f in step.Payload.ArchitectureFindings ?? [])
+                {
+                    nodes.Add(new("Finding", $"{f.RuleId} — {f.Name}"));
+                    foreach (var e in f.Evidence)
+                    {
+                        nodes.Add(new("Evidence", e, Mono: true));
+                    }
+                    nodes.Add(new("Rule", f.Description));
+                }
+                break;
+
+            case JourneyStepKind.QualityGates:
+                foreach (var g in (step.Payload.Gates ?? []).Where(g => g.Status == GateStatus.Failed))
+                {
+                    nodes.Add(new("Blocking gate", g.Name));
+                    foreach (var e in g.Errors)
+                    {
+                        nodes.Add(new("Evidence", e, Mono: true));
+                    }
+                }
+                break;
+
+            case JourneyStepKind.AiReview:
+                foreach (var f in step.Payload.ReviewFindings ?? [])
+                {
+                    nodes.Add(new($"{f.Severity} · {f.Classification}", f.Finding));
+                    nodes.Add(new("Evidence", f.Evidence, Mono: true));
+                }
+                break;
+
+            case JourneyStepKind.HumanReview:
+            case JourneyStepKind.HumanDecision:
+                if (step.Payload.AiInteraction?.Decision is { } d)
+                {
+                    nodes.Add(new("Decision", $"{d.Kind} · {d.DecidedBy}", IsDecision: true));
+                    if (!string.IsNullOrWhiteSpace(d.Reason))
+                    {
+                        nodes.Add(new("Reason", d.Reason!));
+                    }
+                }
+                break;
+
+            case JourneyStepKind.EngineeringHealth when step.Payload.Health is { } h:
+                nodes.Add(new("Score", $"{h.Score} / 100 (deterministic)", IsDecision: true));
+                foreach (var r in h.Reasons)
+                {
+                    nodes.Add(new(r.Kind.ToString(), r.Text));
+                }
+                break;
+        }
+
+        return nodes;
+    }
+
+    public void Dispose() => Player.Changed -= OnChanged;
+}

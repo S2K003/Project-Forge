@@ -1,0 +1,60 @@
+@* Quality Gate Timeline (ProjectForge.md §23.6, §13). AI cannot override these. *@
+
+<div class="stack">
+    @foreach (var gate in Gates)
+    {
+        <div class="gate">
+            <span class="gate__icon @StatusClass(gate.Status)" aria-hidden="true">@Glyph(gate.Status)</span>
+            <div style="flex:1">
+                <div class="spread">
+                    <span class="gate__name">@gate.Name</span>
+                    <span class="gate__meta">
+                        @Label(gate.Status)@(gate.Blocking && gate.Status == GateStatus.Failed ? " · blocking" : null)
+                        @if (gate.Duration > TimeSpan.Zero)
+                        {
+                            <text> · @($"{gate.Duration.TotalSeconds:0}s")</text>
+                        }
+                    </span>
+                </div>
+                @foreach (var e in gate.Errors)
+                {
+                    <div class="gate__evidence mono is-fail">✗ @e</div>
+                }
+                @foreach (var w in gate.Warnings)
+                {
+                    <div class="gate__evidence mono is-warn">⚠ @w</div>
+                }
+                @foreach (var ev in gate.Evidence)
+                {
+                    <div class="gate__evidence mono muted">@ev</div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<QualityGate> Gates { get; set; } = [];
+
+    private static string StatusClass(GateStatus s) => s switch
+    {
+        GateStatus.Passed => "is-pass",
+        GateStatus.Failed => "is-fail",
+        GateStatus.Running => "is-info",
+        GateStatus.Pending => "is-muted",
+        _ => "is-muted"
+    };
+
+    private static string Glyph(GateStatus s) => s switch
+    {
+        GateStatus.Passed => "✓",
+        GateStatus.Failed => "✗",
+        GateStatus.Running => "◐",
+        GateStatus.Pending => "○",
+        GateStatus.Skipped => "–",
+        GateStatus.Cancelled => "×",
+        _ => "○"
+    };
+
+    private static string Label(GateStatus s) => s.ToString().ToLowerInvariant();
+}
