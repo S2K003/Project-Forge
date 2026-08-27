@@ -62,7 +62,9 @@ public sealed class OllamaBridgeProvider : IAiProvider
             Model = _options.Model,
             Prompt = prompt,
             Stream = false,
-            Format = "json"
+            Format = "json",
+            // qwen3 is a reasoning model; disable the think phase so constrained JSON is fast and reliable.
+            Think = false
         };
 
         var client = _httpClientFactory.CreateClient(HttpClientName);
@@ -76,9 +78,18 @@ public sealed class OllamaBridgeProvider : IAiProvider
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            // Caller cancelled — propagate as-is (§45: cancellation is supported).
             throw;
         }
-        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or IOException)
+        catch (OperationCanceledException ex)
+        {
+            // Not the caller's token → our own HttpClient.Timeout elapsed. That is a model /
+            // latency problem, NOT the bridge being offline (§45 — handled distinctly).
+            _breaker.RecordFailure();
+            throw new AiModelException(
+                $"The model did not respond within {_options.TimeoutSeconds}s.", ex);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
         {
             _breaker.RecordFailure();
             throw new AiBridgeUnreachableException(
@@ -152,6 +163,7 @@ public sealed class OllamaBridgeProvider : IAiProvider
         [JsonPropertyName("prompt")] public required string Prompt { get; init; }
         [JsonPropertyName("stream")] public bool Stream { get; init; }
         [JsonPropertyName("format")] public string? Format { get; init; }
+        [JsonPropertyName("think")] public bool Think { get; init; }
     }
 
     private sealed record OllamaGenerateResponse

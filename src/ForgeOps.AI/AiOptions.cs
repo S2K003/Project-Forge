@@ -16,7 +16,7 @@ public sealed class AiOptions
 
     public string Model { get; set; } = "qwen3:8b";
 
-    public int TimeoutSeconds { get; set; } = 60;
+    public int TimeoutSeconds { get; set; } = 120;
 
     /// <summary>Shared bridge token sent as a bearer header to the tunnel. Never exposed to the browser (§39).</summary>
     public string? BridgeToken { get; set; }
