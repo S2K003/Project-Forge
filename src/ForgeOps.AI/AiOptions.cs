@@ -14,7 +14,7 @@ public sealed class AiOptions
     /// <summary>Ollama base URL, reached directly in dev or through the authenticated tunnel when deployed.</summary>
     public string BaseUrl { get; set; } = "http://localhost:11434";
 
-    public string Model { get; set; } = "qwen3:8b";
+    public string Model { get; set; } = "qwen2.5-coder:7b";
 
     /// <summary>
     /// Override for whether to send Ollama's <c>think: false</c>. Null = auto-detect from the

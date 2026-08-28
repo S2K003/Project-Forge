@@ -33,7 +33,7 @@
                  @onclick="EnterLive" style="@(Options.HasApi ? null : "opacity:.5;cursor:not-allowed")">
                 <h3 class="is-info">● Live Mode</h3>
                 <p>
-                    The real thing: <code>qwen3:8b</code> builds the component through the AI Bridge,
+                    The real thing: the local coding model builds the component through the AI Bridge,
                     ForgeOps audits and renders it. Requires a verified bridge connection — losing it locks the app.
                 </p>
                 <div class="chip mt-2">@(Options.HasApi ? "Requires AI Bridge" : "No API configured for this deploy")</div>

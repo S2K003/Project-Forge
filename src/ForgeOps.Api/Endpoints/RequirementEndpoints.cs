@@ -5,7 +5,7 @@ namespace ForgeOps.Api.Endpoints;
 
 /// <summary>
 /// Live Mode requirement → specification (ProjectForge.md §32, Phase 3). Real AI Bridge
-/// call to qwen3:8b through the gateway. Bridge-unreachable is surfaced distinctly from a
+/// call to the configured model through the gateway. Bridge-unreachable is surfaced distinctly from a
 /// model/timeout failure (§45) so the frontend can route to the connection gate.
 /// </summary>
 public static class RequirementEndpoints

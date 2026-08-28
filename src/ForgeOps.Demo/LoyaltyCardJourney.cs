@@ -8,7 +8,7 @@ namespace ForgeOps.Demo;
 /// <summary>
 /// A UI-shaped variant of the journey (ProjectForge.md §4): the requirement produces a
 /// self-contained web component that ForgeOps renders in a locked-down sandboxed iframe.
-/// Demo Mode replays a recording; Live Mode builds it for real with qwen3:8b.
+/// Demo Mode replays a recording; Live Mode builds it for real with the local model.
 /// </summary>
 public static class LoyaltyCardJourney
 {
@@ -69,7 +69,7 @@ public static class LoyaltyCardJourney
         Order = 2,
         Kind = JourneyStepKind.Specification,
         Title = "AI specification",
-        Caption = "qwen3:8b drafts acceptance criteria for the card. Advisory only.",
+        Caption = "qwen2.5-coder:7b drafts acceptance criteria for the card. Advisory only.",
         SimulatedThinkingMs = 1700,
         Payload = new StepPayload { Specification = Spec, AiInteraction = Recorded("spec.v1", 3600, 0.74) }
     };
@@ -101,7 +101,7 @@ public static class LoyaltyCardJourney
         Order = 4,
         Kind = JourneyStepKind.Implementation,
         Title = "AI implementation",
-        Caption = "qwen3:8b builds a self-contained HTML component from the approved spec.",
+        Caption = "qwen2.5-coder:7b builds a self-contained HTML component from the approved spec.",
         SimulatedThinkingMs = 3000,
         Payload = new StepPayload
         {
@@ -177,7 +177,7 @@ public static class LoyaltyCardJourney
         Order = 7,
         Kind = JourneyStepKind.AiReview,
         Title = "AI review",
-        Caption = "qwen3:8b reviews the generated markup.",
+        Caption = "qwen2.5-coder:7b reviews the generated markup.",
         SimulatedThinkingMs = 2000,
         Payload = new StepPayload
         {
@@ -449,8 +449,8 @@ public static class LoyaltyCardJourney
     {
         Id = $"demo-card-{promptVersion}",
         Provider = "OllamaBridge (recorded)",
-        Model = "qwen3:8b",
-        ModelVersion = "qwen3:8b@2025-05",
+        Model = "qwen2.5-coder:7b",
+        ModelVersion = "qwen2.5-coder:7b",
         PromptVersion = promptVersion,
         RequestedAt = DateTimeOffset.Parse("2026-08-28T10:00:00Z"),
         LatencyMs = latencyMs,

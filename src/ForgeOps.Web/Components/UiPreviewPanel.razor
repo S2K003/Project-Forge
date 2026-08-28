@@ -135,8 +135,10 @@
         {
             var body = c.Script.Replace("</script", "<\\/script", StringComparison.OrdinalIgnoreCase);
             var title = JsonSerializer.Serialize(c.Title);
-            sb.Append("<script>window.__fchecks.push({title:").Append(title)
-              .Append(",fn:function(){").Append(body).Append("}});</script>");
+            // Each check in its own <script>, with newlines so a trailing // line-comment in the
+            // model's body can't eat the closing brace. A syntax error only drops that one check.
+            sb.Append("<script>\nwindow.__fchecks.push({title:").Append(title).Append(",fn:function(){\n")
+              .Append(body).Append("\n}});\n</script>");
         }
 
         sb.Append("<script>(function(){var N=").Append(JsonSerializer.Serialize(_nonce)).Append(';')

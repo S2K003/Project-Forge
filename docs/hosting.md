@@ -19,7 +19,7 @@ full product (ProjectForge.md §7, §7A).
           Neon / Supabase          AI Bridge tunnel         GitHub API
           (free Postgres)          (Cloudflare / ngrok)
                                           ▼
-                              Developer PC — Ollama qwen3:8b
+                              Developer PC — Ollama (Ai:Model)
 ```
 
 | Concern | Default choice | Swap by changing |
@@ -27,7 +27,7 @@ full product (ProjectForge.md §7, §7A).
 | Frontend | Vercel (or Cloudflare Pages / GitHub Pages) | `vercel.json` + `deploy/vercel-build.sh` |
 | API | Render / Fly.io free tier | container from `src/ForgeOps.Api/Dockerfile` |
 | Database | Neon / Supabase free Postgres | `ConnectionStrings__ForgeOps` (not used yet — see Roadmap) |
-| AI inference | Ollama + `qwen3:8b` on the dev PC | `Ai__Provider`, `Ai__BaseUrl` |
+| AI inference | Ollama on the dev PC (`Ai:Model`) | `Ai__Provider`, `Ai__BaseUrl` |
 | AI reachability | Cloudflare Tunnel / ngrok | `Ai__BaseUrl`, `Ai__BridgeToken` |
 | CI/CD | GitHub Actions | `.github/workflows/ci.yml` |
 | Secrets | Vercel env vars + API host secret store | — |
@@ -59,7 +59,7 @@ ASPNETCORE_ENVIRONMENT = Production
 Cors__AllowedOrigins__0 = https://<your-vercel-domain>
 Ai__Provider   = OllamaBridge
 Ai__BaseUrl    = https://<your-bridge-tunnel>
-Ai__Model      = qwen3:8b
+Ai__Model      = qwen2.5-coder:7b
 Ai__BridgeToken = <shared secret>
 OTEL_EXPORTER_OTLP_ENDPOINT = <optional, a free trace sink>
 ```

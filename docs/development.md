@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - .NET SDK 10.0.4xx (pinned in `global.json`)
-- (Live Mode only) [Ollama](https://ollama.com) with `qwen3:8b` pulled
+- (Live Mode only) [Ollama](https://ollama.com) with `qwen2.5-coder:7b` pulled (or another — `Ai:Model`)
 
 ## Build & test
 
@@ -28,7 +28,7 @@ else needs to be running.
 ```bash
 # terminal 1 — local model
 ollama serve
-ollama pull qwen3:8b   # first time only
+ollama pull qwen2.5-coder:7b   # first time only
 
 # terminal 2 — API
 dotnet run --project src/ForgeOps.Api          # http://localhost:5xxx

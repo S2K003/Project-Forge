@@ -162,7 +162,7 @@ public sealed class JourneyPlayer
     private async Task<AdvanceResult> RunLiveImplementationAsync(JourneyStep step)
     {
         IsThinking = true;
-        ThinkingLabel = "qwen3:8b is building the implementation…";
+        ThinkingLabel = "The local model is building the implementation…";
         Changed?.Invoke();
 
         try
@@ -193,8 +193,8 @@ public sealed class JourneyPlayer
             _steps[step.Order] = step with
             {
                 Caption = isUi
-                    ? "qwen3:8b built this web component live."
-                    : "qwen3:8b wrote this implementation and tests live.",
+                    ? "The local model built this web component live."
+                    : "The local model wrote this implementation and tests live.",
                 Payload = step.Payload with
                 {
                     Implementation = forge.Implementation,
@@ -454,7 +454,7 @@ public sealed class JourneyPlayer
     private async Task<AdvanceResult> RunLiveSpecificationAsync(JourneyStep step)
     {
         IsThinking = true;
-        ThinkingLabel = "qwen3:8b is drafting the specification…";
+        ThinkingLabel = "The local model is drafting the specification…";
         Changed?.Invoke();
 
         try
@@ -479,7 +479,7 @@ public sealed class JourneyPlayer
             var response = result.Response;
             _steps[step.Order] = step with
             {
-                Caption = "qwen3:8b drafted this specification live. Advisory only.",
+                Caption = "The local model drafted this specification live. Advisory only.",
                 Payload = step.Payload with
                 {
                     Specification = response.Draft,
@@ -499,11 +499,11 @@ public sealed class JourneyPlayer
 
     private static string LabelFor(JourneyStepKind kind) => kind switch
     {
-        JourneyStepKind.Specification => "qwen3:8b is drafting the specification…",
-        JourneyStepKind.Implementation => "qwen3:8b is writing the implementation and tests…",
+        JourneyStepKind.Specification => "The local model is drafting the specification…",
+        JourneyStepKind.Implementation => "The local model is writing the implementation and tests…",
         JourneyStepKind.Audit => "Running Roslyn compile, analyzers and the banned-API scan…",
         JourneyStepKind.QualityGates => "Executing the quality gate pipeline…",
-        JourneyStepKind.AiReview => "qwen3:8b is reviewing the generated diff…",
+        JourneyStepKind.AiReview => "The local model is reviewing the generated diff…",
         JourneyStepKind.AcceptanceRun => "Executing the acceptance suite in the sandbox…",
         JourneyStepKind.Merge => "Confirming every gate is green…",
         _ => "Working…"

@@ -1,8 +1,8 @@
 # AI Architecture & the AI Bridge
 
-ForgeOps runs **no paid AI API** in its default configuration. The AI backend is
-`qwen3:8b` running under [Ollama](https://ollama.com) on the developer's own PC, reached
-from the hosted API through an authenticated tunnel — the **AI Bridge**.
+ForgeOps runs **no paid AI API** in its default configuration. The AI backend is a local
+model running under [Ollama](https://ollama.com) on the developer's own PC, reached from
+the hosted API through an authenticated tunnel — the **AI Bridge**.
 
 ```
 ForgeOps.Web (Vercel, static)
@@ -14,8 +14,23 @@ ForgeOps.Api (free-tier host)
 AI Gateway ──► IAiProvider ──► OllamaBridgeProvider
    │
    ▼  authenticated outbound tunnel (Cloudflare Tunnel / ngrok)
-Ollama on the developer's PC ──► qwen3:8b
+Ollama on the developer's PC ──► local model (Ai:Model)
 ```
+
+## Which model
+
+`Ai:Model` is configuration, not code — swap it freely (§7.3, §7.5).
+
+| Model | ~Size | Notes |
+|---|---|---|
+| **`qwen2.5-coder:7b`** *(default)* | 4.7 GB | Best small coding model; fits a 6 GB GPU. Clearly better at generated HTML/CSS/JS and C# than a general model. |
+| `qwen3:8b` | 5.2 GB | The original choice — a general reasoning model, fine for spec/review, weaker at raw code. |
+| `qwen2.5-coder:14b` / `:32b` | 9 / 20 GB | Better still if you have the VRAM. |
+| `deepseek-coder-v2:16b`, `qwen3-coder:30b`, `gpt-oss:20b` | 9–20 GB | Strong, need more memory / partial CPU offload. |
+
+`OllamaBridgeProvider` sends Ollama's `think: false` only for reasoning models
+(`qwen3` non-coder, `deepseek-r1`, `magistral`, `gpt-oss`, `qwq`); a plain coding model
+rejects that parameter. Override with `Ai:DisableThinking` if auto-detection is wrong.
 
 ## Rules this design follows
 
@@ -35,7 +50,7 @@ Ollama on the developer's PC ──► qwen3:8b
 
 ```bash
 # https://ollama.com/download
-ollama pull qwen3:8b
+ollama pull qwen2.5-coder:7b
 ollama serve            # serves http://localhost:11434
 # sanity check:
 curl http://localhost:11434/api/tags
@@ -73,7 +88,7 @@ Set these on the API host (Render/Fly.io env vars) — **never** in `ForgeOps.We
 ```
 Ai__Provider     = OllamaBridge
 Ai__BaseUrl      = https://bridge.example.com
-Ai__Model        = qwen3:8b
+Ai__Model        = qwen2.5-coder:7b
 Ai__BridgeToken  = <shared secret, sent as: Authorization: Bearer ...>
 Ai__TimeoutSeconds = 60
 ```
@@ -84,7 +99,7 @@ Locally, `src/ForgeOps.Api/appsettings.Development.json` already points at
 ### 4. Verify
 
 ```
-GET  https://<api-host>/health/ai-bridge   → 200 { "up": true, "model": "qwen3:8b" }
+GET  https://<api-host>/health/ai-bridge   → 200 { "up": true, "model": "qwen2.5-coder:7b" }
 ```
 
 The frontend polls this every 7s in Live Mode. Two consecutive failures raise the
@@ -105,7 +120,7 @@ packet doesn't flap the UI).
 Live Mode does not stop at a specification. Once a human approves the spec:
 
 ```
-CodeGenerator (ForgeOps.AI)         qwen3:8b writes LoyaltyService + tests
+CodeGenerator (ForgeOps.AI)         the local model writes LoyaltyService + tests
    │   compile-error repair loop (max 2 rounds, errors fed back to the model)
    ▼
 GeneratedCodeAuditor (ForgeOps.Forge)   Roslyn compile · analyzers ·
