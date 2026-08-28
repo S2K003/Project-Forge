@@ -142,7 +142,7 @@ public static class CustomerHubJourney
                     new GeneratedFile { Path = "LoyaltyServiceTests.cs", Role = GeneratedFileRole.Test, Content = AiTestSource }
                 ]
             },
-            AiInteraction = Recorded("impl.v1", 21850, 0.68),
+            AiInteraction = Recorded("impl.v3", 21850, 0.68),
             Notes =
             [
                 "First compile failed (missing `using System;`); the generator fed the error back and the model fixed it — 1 repair round.",
