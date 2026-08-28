@@ -38,6 +38,28 @@ public sealed class OllamaBridgeProvider : IAiProvider
 
     public string Name => "OllamaBridge";
 
+    /// <summary>
+    /// Whether to send <c>think: false</c>. Explicit config wins; otherwise auto-detect
+    /// reasoning models (qwen3 non-coder, deepseek-r1, magistral, gpt-oss) — a plain coding
+    /// model like qwen2.5-coder rejects the parameter.
+    /// </summary>
+    private static bool ShouldDisableThinking(AiOptions options)
+    {
+        if (options.DisableThinking is { } explicitChoice)
+        {
+            return explicitChoice;
+        }
+
+        var m = options.Model.ToLowerInvariant();
+        var isReasoning =
+            (m.StartsWith("qwen3", StringComparison.Ordinal) && !m.Contains("coder", StringComparison.Ordinal))
+            || m.Contains("deepseek-r1", StringComparison.Ordinal)
+            || m.Contains("magistral", StringComparison.Ordinal)
+            || m.StartsWith("gpt-oss", StringComparison.Ordinal)
+            || m.Contains("qwq", StringComparison.Ordinal);
+        return isReasoning;
+    }
+
     public async Task<AiResponse<T>> GenerateAsync<T>(AiRequest request, CancellationToken cancellationToken = default)
         where T : class
     {
@@ -63,8 +85,8 @@ public sealed class OllamaBridgeProvider : IAiProvider
             Prompt = prompt,
             Stream = false,
             Format = "json",
-            // qwen3 is a reasoning model; disable the think phase so constrained JSON is fast and reliable.
-            Think = false,
+            // Only reasoning models accept `think`; sending it to a plain coding model is a 400.
+            Think = ShouldDisableThinking(_options) ? false : null,
             Options = new OllamaOptions
             {
                 // Lower temperature for code/markup; give it room for a full styled document.
@@ -169,9 +191,18 @@ public sealed class OllamaBridgeProvider : IAiProvider
         [JsonPropertyName("model")] public required string Model { get; init; }
         [JsonPropertyName("prompt")] public required string Prompt { get; init; }
         [JsonPropertyName("stream")] public bool Stream { get; init; }
-        [JsonPropertyName("format")] public string? Format { get; init; }
-        [JsonPropertyName("think")] public bool Think { get; init; }
-        [JsonPropertyName("options")] public OllamaOptions? Options { get; init; }
+
+        [JsonPropertyName("format")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Format { get; init; }
+
+        [JsonPropertyName("think")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public bool? Think { get; init; }
+
+        [JsonPropertyName("options")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public OllamaOptions? Options { get; init; }
     }
 
     private sealed record OllamaOptions

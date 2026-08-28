@@ -16,6 +16,12 @@ public sealed class AiOptions
 
     public string Model { get; set; } = "qwen3:8b";
 
+    /// <summary>
+    /// Override for whether to send Ollama's <c>think: false</c>. Null = auto-detect from the
+    /// model name (reasoning models get it; plain coding models like qwen2.5-coder must not).
+    /// </summary>
+    public bool? DisableThinking { get; set; }
+
     public int TimeoutSeconds { get; set; } = 120;
 
     /// <summary>Shared bridge token sent as a bearer header to the tunnel. Never exposed to the browser (§39).</summary>
