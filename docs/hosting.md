@@ -59,7 +59,7 @@ ASPNETCORE_ENVIRONMENT = Production
 Cors__AllowedOrigins__0 = https://<your-vercel-domain>
 Ai__Provider   = OllamaBridge
 Ai__BaseUrl    = https://<your-bridge-tunnel>
-Ai__Model      = qwen2.5-coder:7b
+Ai__Model      = qwen2.5-coder:14b
 Ai__BridgeToken = <shared secret>
 OTEL_EXPORTER_OTLP_ENDPOINT = <optional, a free trace sink>
 ```

@@ -11,7 +11,7 @@ namespace ForgeOps.Demo;
 /// compiled into the WASM bundle so the walkthrough works with no backend, no AI Bridge,
 /// no code runner and no network (§9A.2).
 ///
-/// Live Mode performs the identical steps for real: qwen2.5-coder:7b drafts the spec and the
+/// Live Mode performs the identical steps for real: qwen2.5-coder:14b drafts the spec and the
 /// implementation, Roslyn audits it, and the sandbox executes the tests.
 /// </summary>
 public static class CustomerHubJourney
@@ -82,7 +82,7 @@ public static class CustomerHubJourney
         Order = 2,
         Kind = JourneyStepKind.Specification,
         Title = "AI specification",
-        Caption = "qwen2.5-coder:7b drafts a testable specification. Advisory only.",
+        Caption = "qwen2.5-coder:14b drafts a testable specification. Advisory only.",
         SimulatedThinkingMs = 1900,
         Payload = new StepPayload
         {
@@ -124,7 +124,7 @@ public static class CustomerHubJourney
         Order = 4,
         Kind = JourneyStepKind.Implementation,
         Title = "AI implementation",
-        Caption = "qwen2.5-coder:7b writes the implementation and its own tests from the approved spec.",
+        Caption = "qwen2.5-coder:14b writes the implementation and its own tests from the approved spec.",
         SimulatedThinkingMs = 3200,
         Payload = new StepPayload
         {
@@ -220,7 +220,7 @@ public static class CustomerHubJourney
         Order = 7,
         Kind = JourneyStepKind.AiReview,
         Title = "AI review",
-        Caption = "qwen2.5-coder:7b reviews the generated diff.",
+        Caption = "qwen2.5-coder:14b reviews the generated diff.",
         SimulatedThinkingMs = 2400,
         Payload = new StepPayload
         {
@@ -787,8 +787,8 @@ public static class CustomerHubJourney
     {
         Id = $"demo-{promptVersion}",
         Provider = "OllamaBridge (recorded)",
-        Model = "qwen2.5-coder:7b",
-        ModelVersion = "qwen2.5-coder:7b",
+        Model = "qwen2.5-coder:14b",
+        ModelVersion = "qwen2.5-coder:14b",
         PromptVersion = promptVersion,
         RequestedAt = DateTimeOffset.Parse("2026-08-28T09:12:00Z"),
         LatencyMs = latencyMs,

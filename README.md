@@ -4,7 +4,7 @@
 
 ForgeOps turns a one-line requirement into governed, testable, reviewable engineering
 work, keeping **deterministic evidence and human judgment above every AI recommendation**.
-Every AI capability runs on a **self-hosted local model** (`qwen2.5-coder:7b` via Ollama, swappable), and
+Every AI capability runs on a **self-hosted local model** (`qwen2.5-coder:14b` via Ollama, swappable), and
 every hosted component runs on a **free tier**.
 
 ```
@@ -74,7 +74,7 @@ dotnet run --project src/ForgeOps.Web      # open the URL, pick "Demo Mode"
 
 ```bash
 # Live Mode — needs the local model
-ollama serve && ollama pull qwen2.5-coder:7b
+ollama serve && ollama pull qwen2.5-coder:14b
 dotnet run --project src/ForgeOps.Api
 # set ForgeOps.Web/wwwroot/appsettings.json → ApiBaseUrl, then:
 dotnet run --project src/ForgeOps.Web
@@ -107,7 +107,7 @@ ForgeOps.Contracts      shared DTOs / enums
 |---|---|---|
 | `ForgeOps.Web` | Vercel (static) | `vercel.json` + `deploy/vercel-build.sh`; set `FORGEOPS_API_BASE_URL` to enable Live Mode |
 | `ForgeOps.Api` | Render / Fly.io free tier | `src/ForgeOps.Api/Dockerfile` |
-| AI inference | your PC — Ollama (`Ai:Model`, default `qwen2.5-coder:7b`) | reached via Cloudflare Tunnel / ngrok |
+| AI inference | your PC — Ollama (`Ai:Model`, default `qwen2.5-coder:14b`) | reached via Cloudflare Tunnel / ngrok |
 | Database | Neon / Supabase free Postgres | *(Roadmap)* |
 
 Deploying the frontend alone gives a fully working **Demo Mode** site.

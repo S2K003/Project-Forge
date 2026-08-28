@@ -14,7 +14,12 @@ public sealed class AiOptions
     /// <summary>Ollama base URL, reached directly in dev or through the authenticated tunnel when deployed.</summary>
     public string BaseUrl { get; set; } = "http://localhost:11434";
 
-    public string Model { get; set; } = "qwen2.5-coder:7b";
+    /// <summary>
+    /// Default is <c>qwen2.5-coder:14b</c> — markedly stronger code/CSS generation than the 7B.
+    /// On a ~6 GB GPU it partially offloads to CPU (~8 tok/s); set this to <c>qwen2.5-coder:7b</c>
+    /// for a faster, lower-quality option.
+    /// </summary>
+    public string Model { get; set; } = "qwen2.5-coder:14b";
 
     /// <summary>
     /// Override for whether to send Ollama's <c>think: false</c>. Null = auto-detect from the
@@ -22,7 +27,7 @@ public sealed class AiOptions
     /// </summary>
     public bool? DisableThinking { get; set; }
 
-    public int TimeoutSeconds { get; set; } = 120;
+    public int TimeoutSeconds { get; set; } = 300;
 
     /// <summary>Shared bridge token sent as a bearer header to the tunnel. Never exposed to the browser (§39).</summary>
     public string? BridgeToken { get; set; }
