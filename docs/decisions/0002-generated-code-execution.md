@@ -26,6 +26,7 @@ Build the pipeline, but keep every one of those principles intact by constructio
 | A human decides before code runs | The journey's **Human decision** step (§8) gates the **Run** step (§9). The API exposes `/api/forge/execute` separately so a human approves the exact code they reviewed |
 | No arbitrary shell / autonomous action | Generated code is a small library compiled against a **curated reference set** (no `System.IO`, `System.Net`, interop, `System.Runtime.Loader`). It is executed only as `[ForgeFact]` test methods, in a **separate short-lived process** (`ForgeOps.Forge.Sandbox`) with a wall-clock budget and process-tree kill |
 | "AI-generated code is not automatically good software" (§51) | ForgeOps ships its **own** canonical acceptance suite (`GeneratedSources.CanonicalSuite`), authored deterministically from the criteria. A weak implementation passes the model's own tests but fails the canonical AC-2 duplicate-event test — the §31 bug, now genuinely detected by running the code |
+| A failing run is not the end (§52) | The **Refine** step (§10 in the journey) feeds the unmet criteria / failing checks — and any free-text human feedback — back to the model via `CodeGenerator.RefineImplementationAsync` / `RefineWebComponentAsync`. It regenerates the artefact, ForgeOps re-audits and re-runs it, and a human still approves. Repeatable; every round is recorded as a `RefinementRound` |
 
 ## UI requirements — render, don't execute-in-process
 
@@ -44,6 +45,10 @@ document**, not C#. It is:
    injects them as inline `<script>` elements (no `eval`), runs them after load, and relays
    pass/fail to the page via `postMessage`. The rest of acceptance is human visual judgment
    (§2.1, §15).
+4. Refinable: a failing self-check (or a human note) feeds the **Refine** step, which asks
+   the model for a full-document rewrite that keeps the working styling and fixes the gap,
+   then re-audits and re-renders. The seeded UI journey demonstrates this — the first
+   attempt omits the tier progress bar (AC-2) and the AI adds it in one round.
 
 The browser is the sandbox here — the strongest isolation available and no server-side
 execution at all, so UI generation + rendering works even on a frontend-only deploy.
@@ -95,7 +100,11 @@ such. Disable with `allowReferenceFallback: false` to see the raw failure instea
 - The generation target is deliberately narrow (complete a few method bodies in a fixed,
   fully-scaffolded class) so an 8B local model succeeds reliably; a compile-error **repair
   loop** (max 3 rounds) plus the reference fallback absorb the rest.
-- Demo Mode ships a recorded run of exactly this pipeline (`CustomerHubJourney`), so the
-  story is always available offline.
+- Demo Mode ships a recorded run of exactly this pipeline (`CustomerHubJourney` for logic,
+  `LoyaltyCardJourney` for UI) — including a first attempt that fails one acceptance
+  criterion and a refinement round that closes it — so the full story is available offline.
+- The refinement loop is bounded: `RefineImplementationAsync` runs at most 2 internal
+  compile-repair passes and, if the rewrite still does not compile or does not improve, it
+  returns the previous artefact unchanged with a note rather than regressing.
 - If the generation target broadens later, this ADR must be revisited — a larger surface
   needs stronger isolation than layers 1–4 provide.

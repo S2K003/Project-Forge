@@ -88,6 +88,23 @@ public sealed class ForgeOpsApiClient
         PostForgeAsync("api/forge/execute",
             new ExecuteImplementationRequest { Implementation = implementation }, ct);
 
+    /// <summary>Regenerate the current artefact to close unmet criteria / apply feedback, then re-audit and re-run.</summary>
+    public Task<ForgeCallResult> ForgeRefineAsync(
+        string requirementText, SpecificationDraft spec, GeneratedImplementation current,
+        IReadOnlyList<string> unmetCriteria, IReadOnlyList<string> failingChecks,
+        string? feedback, int round, CancellationToken ct = default) =>
+        PostForgeAsync("api/forge/refine",
+            new ForgeRefineRequest
+            {
+                RequirementText = requirementText,
+                Specification = spec,
+                Current = current,
+                UnmetCriteria = unmetCriteria,
+                FailingChecks = failingChecks,
+                Feedback = feedback,
+                Round = round
+            }, ct);
+
     private async Task<ForgeCallResult> PostForgeAsync(string path, object body, CancellationToken ct)
     {
         HttpResponseMessage response;

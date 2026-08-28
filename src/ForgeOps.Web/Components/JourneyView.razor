@@ -21,7 +21,9 @@
         {
             <StepBody Step="Player.Current" Definition="Player.Definition" Mode="Player.Mode"
                       RequirementText="Player.RequirementText" OnRequirementChanged="Player.SetRequirement"
-                      OnUiResults="Player.SetUiResults" />
+                      OnUiResults="Player.SetUiResults"
+                      RefineFeedback="Player.RefineFeedback" OnRefineFeedbackChanged="Player.SetRefineFeedback"
+                      OnRefineAgain="RefineAgain" />
         }
 
         <div class="row mt-4">
@@ -69,6 +71,21 @@
         }
     }
 
+    private async Task RefineAgain()
+    {
+        _error = null;
+        var result = await Player.RefineAgainAsync();
+        switch (result.Kind)
+        {
+            case AdvanceResultKind.BridgeOffline:
+                await OnBridgeOffline.InvokeAsync(result.Detail ?? "AI Bridge is offline.");
+                break;
+            case AdvanceResultKind.ModelError:
+                _error = result.Detail;
+                break;
+        }
+    }
+
     private void Back() => Player.GoTo(Player.CurrentIndex - 1);
 
     private void Restart()
@@ -88,6 +105,7 @@
             JourneyStepKind.AiReview => "Run AI review",
             JourneyStepKind.HumanDecision => "Approve execution",
             JourneyStepKind.AcceptanceRun => "Run the code",
+            JourneyStepKind.Refine => "Refine the code",
             JourneyStepKind.Merge => "Merge",
             JourneyStepKind.Telemetry => "Show telemetry",
             JourneyStepKind.EngineeringHealth => "Show engineering health",
@@ -160,6 +178,20 @@
                 {
                     nodes.Add(new($"{f.Severity} · {f.Classification}", f.Finding));
                     nodes.Add(new("Evidence", f.Evidence, Mono: true));
+                }
+                break;
+
+            case JourneyStepKind.Refine when step.Payload.Refinement is { } round:
+                nodes.Add(new("Round", $"{round.Round}", IsDecision: true));
+                if (round.AddressedCriteria.Count > 0)
+                {
+                    nodes.Add(new("Addressed", string.Join(", ", round.AddressedCriteria)));
+                }
+                nodes.Add(new("Outcome", round.AllCriteriaMet ? "every criterion satisfied" : "criteria still open",
+                    IsDecision: round.AllCriteriaMet));
+                if (step.Payload.CanonicalTestRun is { } cr)
+                {
+                    nodes.Add(new("Canonical suite", $"{cr.Passed} / {cr.Passed + cr.Failed} passed", Mono: true));
                 }
                 break;
 

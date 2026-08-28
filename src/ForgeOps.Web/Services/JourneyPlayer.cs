@@ -47,6 +47,18 @@ public sealed class JourneyPlayer
         Changed?.Invoke();
     }
 
+    private string? _refineFeedback;
+    private int _refineRound;
+
+    /// <summary>Live Mode: an optional free-text change the user typed on the Refine step.</summary>
+    public string RefineFeedback => _refineFeedback ?? string.Empty;
+
+    public void SetRefineFeedback(string text)
+    {
+        _refineFeedback = text;
+        Changed?.Invoke();
+    }
+
     public IReadOnlyList<JourneyStep> Steps => _steps;
     public JourneyStep? Current => _steps.Count > 0 ? _steps[CurrentIndex] : null;
     public bool IsComplete => Current is { Kind: JourneyStepKind.EngineeringHealth, State: JourneyStepState.Active or JourneyStepState.Complete };
@@ -73,6 +85,8 @@ public sealed class JourneyPlayer
         ThinkingLabel = null;
         _liveImplementation = null;
         _requirementOverride = null;
+        _refineFeedback = null;
+        _refineRound = 0;
         Changed?.Invoke();
     }
 
@@ -110,6 +124,7 @@ public sealed class JourneyPlayer
                 JourneyStepKind.Specification => await RunLiveSpecificationAsync(nextStep),
                 JourneyStepKind.Implementation => await RunLiveImplementationAsync(nextStep),
                 JourneyStepKind.AcceptanceRun => await RunLiveAcceptanceAsync(nextStep),
+                JourneyStepKind.Refine => await RunLiveRefineAsync(nextStep),
                 _ when nextStep.SimulatedThinkingMs > 0 => await SimulateAndOk(nextStep),
                 _ => AdvanceResult.Ok
             };
@@ -298,6 +313,145 @@ public sealed class JourneyPlayer
         }
     }
 
+    /// <summary>
+    /// Live Mode: ask the model to regenerate the artefact to close whatever the last run left
+    /// unmet, plus any free-text change the user typed, then re-audit and re-run it (§52).
+    /// </summary>
+    private async Task<AdvanceResult> RunLiveRefineAsync(JourneyStep step)
+    {
+        if (_liveImplementation is null)
+        {
+            return AdvanceResult.ModelError("No generated implementation is available to refine.");
+        }
+
+        var spec = _steps.FirstOrDefault(s => s.Kind == JourneyStepKind.Specification)?.Payload.Specification;
+        if (spec is null)
+        {
+            return AdvanceResult.ModelError("No approved specification is available.");
+        }
+
+        var runStep = _steps.FirstOrDefault(s => s.Kind == JourneyStepKind.AcceptanceRun)?.Payload;
+        var isUi = _liveImplementation.Kind == ForgeOps.Contracts.Forge.ImplementationKind.WebComponent;
+
+        var unmet = isUi
+            ? []
+            : (runStep?.Acceptance ?? [])
+                .Where(a => a.Status != AcceptanceStatus.Satisfied)
+                .Select(a => a.CriterionId)
+                .ToList();
+
+        var failingChecks = isUi
+            ? (runStep?.Ui?.Results ?? []).Where(r => !r.Passed).Select(r => r.Title).ToList()
+            : (runStep?.CanonicalTestRun?.Results ?? [])
+                .Where(r => r.Outcome == TestOutcome.Failed)
+                .Select(r => r.Name)
+                .ToList();
+
+        var feedback = string.IsNullOrWhiteSpace(_refineFeedback) ? null : _refineFeedback!.Trim();
+
+        if (unmet.Count == 0 && failingChecks.Count == 0 && feedback is null)
+        {
+            _steps[step.Order] = step with
+            {
+                Caption = "Nothing to refine — the first attempt met every criterion.",
+                Payload = step.Payload with
+                {
+                    Implementation = _liveImplementation,
+                    Ui = isUi ? runStep?.Ui : null,
+                    Scenario = runStep?.Scenario,
+                    Acceptance = runStep?.Acceptance,
+                    CanonicalTestRun = runStep?.CanonicalTestRun,
+                    AiTestRun = runStep?.AiTestRun,
+                    Refinement = new RefinementRound { Round = 0, Summary = "No refinement needed.", AllCriteriaMet = true },
+                    AiInteraction = null,
+                    Notes = ["The first generated artefact already passed. Type a change below and use “Refine again” to iterate."]
+                }
+            };
+            return AdvanceResult.Ok;
+        }
+
+        IsThinking = true;
+        ThinkingLabel = "The local model is regenerating the artefact to close the gaps…";
+        Changed?.Invoke();
+
+        try
+        {
+            _refineRound++;
+            var result = await _api.ForgeRefineAsync(
+                RequirementText, spec, _liveImplementation, unmet, failingChecks, feedback, _refineRound);
+
+            if (result.IsBridgeOffline)
+            {
+                return AdvanceResult.BridgeOffline(result.FailureDetail ?? "AI Bridge is offline.");
+            }
+
+            if (!result.Ok || result.Response is null)
+            {
+                return AdvanceResult.ModelError(result.FailureDetail ?? "Refinement failed.");
+            }
+
+            var forge = result.Response.Result;
+            _liveImplementation = forge.Implementation;
+            _refineFeedback = null;
+
+            _steps[step.Order] = step with
+            {
+                Caption = isUi
+                    ? "The local model regenerated the component; it is re-rendered below."
+                    : "The local model regenerated the code; ForgeOps re-audited and re-ran it.",
+                Payload = step.Payload with
+                {
+                    Implementation = forge.Implementation,
+                    Audit = forge.Audit,
+                    Ui = isUi ? forge.Ui : null,
+                    Scenario = forge.Scenario,
+                    AiTestRun = forge.AiTestRun,
+                    CanonicalTestRun = forge.CanonicalTestRun,
+                    Acceptance = forge.Acceptance.Count > 0 ? forge.Acceptance : SpecAcceptance(),
+                    Refinement = forge.Refinement ?? new RefinementRound
+                    {
+                        Round = _refineRound,
+                        AddressedCriteria = unmet,
+                        Feedback = feedback,
+                        Summary = forge.Implementation.Summary,
+                        AllCriteriaMet = forge.RequirementSatisfied
+                    },
+                    AiInteraction = forge.Interaction,
+                    Notes = isUi
+                        ? [$"Refinement round {_refineRound} — verify the component above by eye."]
+                        : [BuildAcceptanceNote(forge)]
+                }
+            };
+
+            ApplyAudit(forge);
+            if (!isUi)
+            {
+                ApplyAcceptanceToGates(forge);
+            }
+
+            return AdvanceResult.Ok;
+        }
+        finally
+        {
+            IsThinking = false;
+            ThinkingLabel = null;
+        }
+    }
+
+    /// <summary>Live Mode: re-run the Refine step in place (the user asked for another change).</summary>
+    public async Task<AdvanceResult> RefineAgainAsync()
+    {
+        var idx = _steps.FindIndex(s => s.Kind == JourneyStepKind.Refine);
+        if (idx < 0 || Mode != AppMode.Live || IsThinking)
+        {
+            return AdvanceResult.Done;
+        }
+
+        var result = await RunLiveRefineAsync(_steps[idx]);
+        Changed?.Invoke();
+        return result;
+    }
+
     /// <summary>The spec's acceptance criteria as a reviewer checklist (UI acceptance is human-judged, §2.1).</summary>
     private List<AcceptanceOutcome> SpecAcceptance()
     {
@@ -313,7 +467,11 @@ public sealed class JourneyPlayer
     /// <summary>Called from the browser once the sandboxed iframe has rendered and reported its checks.</summary>
     public void SetUiResults(IReadOnlyList<ForgeOps.Contracts.Forge.UiCheckResult> results)
     {
-        var runIndex = _steps.FindIndex(s => s.Kind == JourneyStepKind.AcceptanceRun);
+        // The Refine step also renders a component preview — update whichever step the results
+        // came from (the current one if it carries a Ui), else the acceptance run.
+        var runIndex = _steps[CurrentIndex].Payload.Ui is { DocumentHtml.Length: > 0 }
+            ? CurrentIndex
+            : _steps.FindIndex(s => s.Kind == JourneyStepKind.AcceptanceRun);
         if (runIndex < 0 || _steps[runIndex].Payload.Ui is not { } ui)
         {
             return;
@@ -505,6 +663,7 @@ public sealed class JourneyPlayer
         JourneyStepKind.QualityGates => "Executing the quality gate pipeline…",
         JourneyStepKind.AiReview => "The local model is reviewing the generated diff…",
         JourneyStepKind.AcceptanceRun => "Executing the acceptance suite in the sandbox…",
+        JourneyStepKind.Refine => "The local model is regenerating the artefact to close the gaps…",
         JourneyStepKind.Merge => "Confirming every gate is green…",
         _ => "Working…"
     };

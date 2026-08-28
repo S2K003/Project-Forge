@@ -35,6 +35,7 @@ public static class CustomerHubJourney
             AiReview(),
             HumanDecision(),
             AcceptanceRun(),
+            Refine(),
             Merge(),
             Telemetry(),
             Health()
@@ -129,16 +130,16 @@ public static class CustomerHubJourney
         {
             Implementation = new GeneratedImplementation
             {
-                Summary = "In-memory LoyaltyService: floor(net total) points on paid orders ≥ 1.00, idempotent per order, reversible on refund.",
+                Summary = "In-memory LoyaltyService: floor(net total) points on paid orders ≥ 1.00, reversible on refund.",
                 Rationale =
-                    "Awarded points are tracked in a dictionary keyed by OrderId so a redelivered "
-                    + "payment-confirmed event is a no-op. Refunds look up the recorded award and post a "
-                    + "compensating ledger entry. All state is in-memory; no external dependencies.",
+                    "Points are added to a per-customer balance dictionary and every credit is logged "
+                    + "to the ledger. Refunds look up the ledger entry and post a compensating entry. "
+                    + "All state is in-memory; no external dependencies.",
                 RepairAttempts = 1,
                 Origin = ImplementationOrigin.ModelWithRepairs,
                 Files =
                 [
-                    new GeneratedFile { Path = "LoyaltyService.cs", Role = GeneratedFileRole.Implementation, Content = ImplSource },
+                    new GeneratedFile { Path = "LoyaltyService.cs", Role = GeneratedFileRole.Implementation, Content = ImplSourceWeak },
                     new GeneratedFile { Path = "LoyaltyServiceTests.cs", Role = GeneratedFileRole.Test, Content = AiTestSource }
                 ]
             },
@@ -227,21 +228,21 @@ public static class CustomerHubJourney
             [
                 new AiReviewFinding
                 {
-                    Severity = FindingSeverity.Medium,
+                    Severity = FindingSeverity.High,
                     Classification = AiClassification.Likely,
-                    Finding = "OnOrderRefunded assumes a ledger entry exists for the order id before reading CustomerId.",
-                    Evidence = "LoyaltyService.cs:34",
-                    Recommendation = "The early-return on the awarded-orders dictionary already guards this, but assert it or use the stored award record directly.",
-                    Confidence = 0.72
+                    Finding = "OnPaymentConfirmed is not idempotent — a redelivered payment-confirmed event credits points again.",
+                    Evidence = "LoyaltyService.cs:14",
+                    Recommendation = "Track awarded order ids and no-op on a repeat. This is acceptance criterion AC-2.",
+                    Confidence = 0.83
                 },
                 new AiReviewFinding
                 {
                     Severity = FindingSeverity.Low,
                     Classification = AiClassification.Confirmed,
-                    Finding = "Idempotency is handled by tracking awarded orders in a dictionary keyed by OrderId.",
-                    Evidence = "LoyaltyService.cs:22",
-                    Recommendation = "Good. This directly satisfies acceptance criterion AC-2.",
-                    Confidence = 0.94
+                    Finding = "Refund reversal reads CustomerId from the ledger, which is populated on credit.",
+                    Evidence = "LoyaltyService.cs:26",
+                    Recommendation = "Fine, but storing the award as a record would be clearer.",
+                    Confidence = 0.9
                 },
                 new AiReviewFinding
                 {
@@ -273,7 +274,7 @@ public static class CustomerHubJourney
                     Kind = HumanDecisionKind.Accepted,
                     DecidedBy = "Sharath",
                     DecidedAt = DateTimeOffset.Parse("2026-08-28T09:41:00Z"),
-                    Reason = "Audit is clean and the idempotency approach looks right. Approving execution of the acceptance suite."
+                    Reason = "Audit is clean. The AI flagged a possible idempotency gap — run the acceptance suite and let the evidence decide."
                 }
             },
             Notes =
@@ -297,11 +298,123 @@ public static class CustomerHubJourney
             {
                 Suite = TestSuiteKind.AiGenerated,
                 Executed = true,
-                Passed = 4,
+                Passed = 3,
                 Failed = 0,
                 Skipped = 0,
+                DurationMs = 39,
+                RunnerDetail = "3 test(s) in 39 ms — the model wrote no test for duplicate delivery",
+                Results =
+                [
+                    Pass("LoyaltyServiceTests.Awards_points_for_paid_order"),
+                    Pass("LoyaltyServiceTests.No_points_for_unpaid_order"),
+                    Pass("LoyaltyServiceTests.Refund_reverses_points")
+                ]
+            },
+            CanonicalTestRun = new TestRunResult
+            {
+                Suite = TestSuiteKind.Canonical,
+                Executed = true,
+                Passed = 5,
+                Failed = 1,
+                Skipped = 0,
+                DurationMs = 40,
+                RunnerDetail = "6 test(s) in 40 ms — 1 failed (sandboxed child process)",
+                Results =
+                [
+                    Pass("LoyaltyAcceptance.Awards_floor_of_net_total_on_paid_order", "AC-1"),
+                    new TestResult
+                    {
+                        Name = "LoyaltyAcceptance.Duplicate_payment_event_credits_points_at_most_once",
+                        Outcome = TestOutcome.Failed,
+                        Message = "ForgeAssertException: Expected <42>, got <84>.",
+                        DurationMs = 4,
+                        Criteria = ["AC-2"]
+                    },
+                    Pass("LoyaltyAcceptance.Full_refund_reverses_awarded_points", "AC-3"),
+                    Pass("LoyaltyAcceptance.Below_minimum_qualifying_value_awards_nothing", "AC-4"),
+                    Pass("LoyaltyAcceptance.Crediting_writes_an_audit_entry_for_the_order", "AC-5"),
+                    Pass("LoyaltyAcceptance.Unpaid_order_awards_nothing", "AC-1")
+                ]
+            },
+            Scenario = new ScenarioRun
+            {
+                Executed = true,
+                Detail = "6 step(s) in 12 ms (sandboxed)",
+                Steps =
+                [
+                    Step("OnPaymentConfirmed( ORD-1001 · alice · $42.90 · paid )", "alice balance = 42 points"),
+                    Step("OnPaymentConfirmed( ORD-1001 ) again  — duplicate webhook delivery", "alice balance = 84 points  ← double-credited"),
+                    Step("OnPaymentConfirmed( ORD-1002 · bob · $0.80 · paid )  — below the $1.00 minimum", "bob balance = 0 points"),
+                    Step("OnPaymentConfirmed( ORD-1003 · carol · $120.00 · NOT paid )", "carol balance = 0 points"),
+                    Step("OnOrderRefunded( ORD-1001 )  — alice's order is fully refunded", "alice balance = 42 points  ← refund reversed only one credit"),
+                    Step("Final loyalty ledger",
+                        "\n  ORD-1001   alice  +42   purchase\n  ORD-1001   alice  +42   purchase\n  ORD-1001   alice  -42   refund")
+                ]
+            },
+            Acceptance =
+            [
+                Acc("AC-1", "A paid order credits floor(net total) points to the customer.", AcceptanceStatus.Satisfied,
+                    "LoyaltyAcceptance.Awards_floor_of_net_total_on_paid_order", "LoyaltyAcceptance.Unpaid_order_awards_nothing"),
+                Acc("AC-2", "A redelivered payment-confirmed event credits points at most once.", AcceptanceStatus.NotSatisfied,
+                    "LoyaltyAcceptance.Duplicate_payment_event_credits_points_at_most_once"),
+                Acc("AC-3", "A full refund reverses the points that were awarded.", AcceptanceStatus.Satisfied,
+                    "LoyaltyAcceptance.Full_refund_reverses_awarded_points"),
+                Acc("AC-4", "A purchase below the minimum qualifying value credits nothing.", AcceptanceStatus.Satisfied,
+                    "LoyaltyAcceptance.Below_minimum_qualifying_value_awards_nothing"),
+                Acc("AC-5", "Crediting writes an audit entry recording the order and reason.", AcceptanceStatus.Satisfied,
+                    "LoyaltyAcceptance.Crediting_writes_an_audit_entry_for_the_order")
+            ],
+            Notes =
+            [
+                "The code runs — but it is wrong. AC-2 fails: a redelivered event double-credits (42 → 84).",
+                "The model's own tests all passed; ForgeOps' canonical suite caught the gap (§31, §51).",
+                "This does not merge. The AI must refine the code."
+            ]
+        }
+    };
+
+    private static JourneyStep Refine() => new()
+    {
+        Order = 10,
+        Kind = JourneyStepKind.Refine,
+        Title = "AI refinement",
+        Caption = "The AI regenerates the code to close AC-2, then ForgeOps re-audits and re-runs it.",
+        SimulatedThinkingMs = 3000,
+        Payload = new StepPayload
+        {
+            Implementation = new GeneratedImplementation
+            {
+                Summary = "Made point crediting idempotent per order and added a duplicate-delivery test.",
+                Rationale =
+                    "Awarded order ids are now tracked in a dictionary; a repeat OnPaymentConfirmed for the "
+                    + "same order is a no-op. Refunds reverse the single recorded award. All other behaviour is unchanged.",
+                Kind = ImplementationKind.CSharpLogic,
+                Origin = ImplementationOrigin.ModelWithRepairs,
+                RepairAttempts = 0,
+                Files =
+                [
+                    new GeneratedFile { Path = "LoyaltyService.cs", Role = GeneratedFileRole.Implementation, Content = ImplSource },
+                    new GeneratedFile { Path = "LoyaltyServiceTests.cs", Role = GeneratedFileRole.Test, Content = AiTestSource }
+                ]
+            },
+            Audit = new AuditReport
+            {
+                Compiled = true,
+                RepairAttempts = 0,
+                Diagnostics = [],
+                BannedApis = [],
+                ArchitecturePassed = true,
+                ArchitectureNotes = ["Implements ILoyaltyService; sealed; no public mutable state; namespace CustomerHub.Loyalty."],
+                Verdict = AuditVerdict.Passed
+            },
+            AiTestRun = new TestRunResult
+            {
+                Suite = TestSuiteKind.AiGenerated,
+                Executed = true,
+                Passed = 4,
+                Failed = 0,
                 DurationMs = 41,
-                RunnerDetail = "4 test(s) in 41 ms (sandboxed child process, 20s budget)",
+                RunnerDetail = "4 test(s) in 41 ms (sandboxed)",
                 Results =
                 [
                     Pass("LoyaltyServiceTests.Awards_points_for_paid_order"),
@@ -316,9 +429,8 @@ public static class CustomerHubJourney
                 Executed = true,
                 Passed = 6,
                 Failed = 0,
-                Skipped = 0,
                 DurationMs = 38,
-                RunnerDetail = "6 test(s) in 38 ms (sandboxed child process)",
+                RunnerDetail = "6 test(s) in 38 ms — all passed (sandboxed)",
                 Results =
                 [
                     Pass("LoyaltyAcceptance.Awards_floor_of_net_total_on_paid_order", "AC-1"),
@@ -332,7 +444,7 @@ public static class CustomerHubJourney
             Scenario = new ScenarioRun
             {
                 Executed = true,
-                Detail = "6 step(s) in 12 ms (sandboxed)",
+                Detail = "6 step(s) in 11 ms (sandboxed)",
                 Steps =
                 [
                     Step("OnPaymentConfirmed( ORD-1001 · alice · $42.90 · paid )", "alice balance = 42 points"),
@@ -340,37 +452,48 @@ public static class CustomerHubJourney
                     Step("OnPaymentConfirmed( ORD-1002 · bob · $0.80 · paid )  — below the $1.00 minimum", "bob balance = 0 points"),
                     Step("OnPaymentConfirmed( ORD-1003 · carol · $120.00 · NOT paid )", "carol balance = 0 points"),
                     Step("OnOrderRefunded( ORD-1001 )  — alice's order is fully refunded", "alice balance = 0 points"),
-                    Step("Final loyalty ledger",
-                        "\n  ORD-1001   alice  +42   purchase\n  ORD-1001   alice  -42   refund")
+                    Step("Final loyalty ledger", "\n  ORD-1001   alice  +42   purchase\n  ORD-1001   alice  -42   refund")
                 ]
             },
             Acceptance =
             [
-                Acc("AC-1", "A paid order credits floor(net total) points to the customer.", AcceptanceStatus.Satisfied,
-                    "LoyaltyAcceptance.Awards_floor_of_net_total_on_paid_order", "LoyaltyAcceptance.Unpaid_order_awards_nothing"),
-                Acc("AC-2", "A redelivered payment-confirmed event credits points at most once.", AcceptanceStatus.Satisfied,
-                    "LoyaltyAcceptance.Duplicate_payment_event_credits_points_at_most_once"),
-                Acc("AC-3", "A full refund reverses the points that were awarded.", AcceptanceStatus.Satisfied,
-                    "LoyaltyAcceptance.Full_refund_reverses_awarded_points"),
-                Acc("AC-4", "A purchase below the minimum qualifying value credits nothing.", AcceptanceStatus.Satisfied,
-                    "LoyaltyAcceptance.Below_minimum_qualifying_value_awards_nothing"),
-                Acc("AC-5", "Crediting writes an audit entry recording the order and reason.", AcceptanceStatus.Satisfied,
-                    "LoyaltyAcceptance.Crediting_writes_an_audit_entry_for_the_order")
+                Acc("AC-1", "A paid order credits floor(net total) points to the customer.", AcceptanceStatus.Satisfied, "LoyaltyAcceptance.Awards_floor_of_net_total_on_paid_order"),
+                Acc("AC-2", "A redelivered payment-confirmed event credits points at most once.", AcceptanceStatus.Satisfied, "LoyaltyAcceptance.Duplicate_payment_event_credits_points_at_most_once"),
+                Acc("AC-3", "A full refund reverses the points that were awarded.", AcceptanceStatus.Satisfied, "LoyaltyAcceptance.Full_refund_reverses_awarded_points"),
+                Acc("AC-4", "A purchase below the minimum qualifying value credits nothing.", AcceptanceStatus.Satisfied, "LoyaltyAcceptance.Below_minimum_qualifying_value_awards_nothing"),
+                Acc("AC-5", "Crediting writes an audit entry recording the order and reason.", AcceptanceStatus.Satisfied, "LoyaltyAcceptance.Crediting_writes_an_audit_entry_for_the_order")
             ],
+            Refinement = new RefinementRound
+            {
+                Round = 1,
+                AddressedCriteria = ["AC-2"],
+                Summary = "Made point crediting idempotent per order and added a duplicate-delivery test.",
+                AllCriteriaMet = true
+            },
+            AiInteraction = Recorded("impl.refine.v1", 12400, 0.79) with
+            {
+                Decision = new ForgeOps.Contracts.Ai.HumanDecision
+                {
+                    Kind = HumanDecisionKind.Accepted,
+                    DecidedBy = "Sharath",
+                    DecidedAt = DateTimeOffset.Parse("2026-08-28T09:52:00Z"),
+                    Reason = "AC-2 now passes; the other criteria still pass. Accepting the refinement."
+                }
+            },
             Notes =
             [
-                "All 5 acceptance criteria are satisfied by executed tests — the requirement is met by code that runs.",
-                "On an earlier attempt the model's implementation double-credited points on duplicate events; the canonical AC-2 test caught it and the model regenerated (§31)."
+                "Round 1 — the AI regenerated addressing AC-2. Canonical suite: 6 / 6. All 5 acceptance criteria satisfied.",
+                "The updated LoyaltyService.cs and its execution trace are shown above."
             ]
         }
     };
 
     private static JourneyStep Merge() => new()
     {
-        Order = 10,
+        Order = 11,
         Kind = JourneyStepKind.Merge,
         Title = "Merge",
-        Caption = "Deterministic evidence is green and a human approved. PR #142 merges.",
+        Caption = "The refined code is green and a human approved it. PR #142 merges.",
         SimulatedThinkingMs = 1200,
         Payload = new StepPayload
         {
@@ -379,8 +502,8 @@ public static class CustomerHubJourney
                 Gate("Compile (Roslyn)", GateStatus.Passed, 2),
                 Gate("Banned-API scan", GateStatus.Passed, 1),
                 Gate("Architecture", GateStatus.Passed, 2),
-                Gate("AI-authored tests", GateStatus.Passed, 4, evidence: ["4 / 4"]),
-                Gate("Acceptance (canonical)", GateStatus.Passed, 4, evidence: ["6 / 6 — AC-1..AC-5 satisfied"])
+                Gate("AI-authored tests", GateStatus.Passed, 4, evidence: ["4 / 4 (after refinement)"]),
+                Gate("Acceptance (canonical)", GateStatus.Passed, 4, evidence: ["6 / 6 — AC-1..AC-5 satisfied after 1 refinement round"])
             ],
             PullRequest = new PullRequestSummary
             {
@@ -388,16 +511,16 @@ public static class CustomerHubJourney
                 Title = "Implement customer loyalty points",
                 Branch = "feature/loyalty-points",
                 FilesChanged = 2,
-                Additions = 96,
-                Deletions = 0
+                Additions = 104,
+                Deletions = 6
             },
-            Notes = ["PR #142 merged to main at 10:02. Every blocking gate green; acceptance proven by execution."]
+            Notes = ["PR #142 merged to main at 10:06. Every blocking gate green; acceptance proven by execution after the AI closed AC-2."]
         }
     };
 
     private static JourneyStep Telemetry() => new()
     {
-        Order = 11,
+        Order = 12,
         Kind = JourneyStepKind.Telemetry,
         Title = "Telemetry",
         Caption = "The forge pipeline is itself observable.",
@@ -418,7 +541,7 @@ public static class CustomerHubJourney
 
     private static JourneyStep Health() => new()
     {
-        Order = 12,
+        Order = 13,
         Kind = JourneyStepKind.EngineeringHealth,
         Title = "Engineering health",
         Caption = "Deterministic score, with a full \"Why?\" (§14, §15).",
@@ -439,11 +562,11 @@ public static class CustomerHubJourney
                 ],
                 Reasons =
                 [
-                    new HealthReason { Kind = ReasonKind.Pass, Text = "5 / 5 acceptance criteria satisfied by executed tests" },
+                    new HealthReason { Kind = ReasonKind.Pass, Text = "5 / 5 acceptance criteria satisfied by executed tests (after 1 refinement round)" },
                     new HealthReason { Kind = ReasonKind.Pass, Text = "Deterministic audit clean — 0 banned APIs, architecture rules pass" },
                     new HealthReason { Kind = ReasonKind.Pass, Text = "10 / 10 tests passing in the sandbox (AI + canonical)" },
-                    new HealthReason { Kind = ReasonKind.Warn, Text = "Generated code emits no telemetry yet (OBS-001 suggestion open)" },
-                    new HealthReason { Kind = ReasonKind.Warn, Text = "Loyalty module documentation is a stub" }
+                    new HealthReason { Kind = ReasonKind.Warn, Text = "The first generated implementation shipped an AC-2 defect that only the canonical suite caught" },
+                    new HealthReason { Kind = ReasonKind.Warn, Text = "Generated code emits no telemetry yet (OBS-001 suggestion open)" }
                 ]
             }
         }
@@ -473,6 +596,55 @@ public static class CustomerHubJourney
         ]
     };
 
+    // The model's first attempt — awards points but is NOT idempotent (fails canonical AC-2).
+    private const string ImplSourceWeak =
+        """
+        namespace CustomerHub.Loyalty;
+
+        using System;
+        using System.Collections.Generic;
+        using System.Linq;
+
+        public sealed class LoyaltyService : ILoyaltyService
+        {
+            private const decimal MinimumQualifyingValue = 1.00m;
+
+            private readonly Dictionary<string, int> _balances = new();
+            private readonly List<LedgerEntry> _ledger = new();
+
+            public IReadOnlyList<LedgerEntry> Ledger => _ledger;
+
+            public void OnPaymentConfirmed(Order order)
+            {
+                ArgumentNullException.ThrowIfNull(order);
+
+                if (!order.IsPaid || order.NetTotal < MinimumQualifyingValue)
+                    return;
+
+                var points = (int)Math.Floor(order.NetTotal);
+                Adjust(order.CustomerId, points);
+                _ledger.Add(new LedgerEntry(order.OrderId, order.CustomerId, points, "purchase", DateTimeOffset.UtcNow));
+            }
+
+            public void OnOrderRefunded(string orderId)
+            {
+                var entry = _ledger.FirstOrDefault(e => e.OrderId == orderId && e.Reason == "purchase");
+                if (entry is null)
+                    return;
+
+                Adjust(entry.CustomerId, -entry.Points);
+                _ledger.Add(new LedgerEntry(orderId, entry.CustomerId, -entry.Points, "refund", DateTimeOffset.UtcNow));
+            }
+
+            public int BalanceFor(string customerId) =>
+                _balances.TryGetValue(customerId, out var balance) ? balance : 0;
+
+            private void Adjust(string customerId, int delta) =>
+                _balances[customerId] = BalanceFor(customerId) + delta;
+        }
+        """;
+
+    // The refined implementation — idempotent per order (all criteria pass).
     private const string ImplSource =
         """
         namespace CustomerHub.Loyalty;

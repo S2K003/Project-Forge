@@ -101,6 +101,72 @@ public static class ForgeEndpoints
         .WithName("ForgeExecute")
         .WithSummary("Audit and sandbox-run an already-generated implementation.");
 
+        // Regenerate the artefact to close unmet acceptance criteria / apply human feedback,
+        // then re-audit and re-run it.
+        routes.MapPost("/api/forge/refine", async (
+            ForgeRefineRequest request,
+            CodeGenerator generator,
+            ForgePipeline pipeline,
+            CancellationToken cancellationToken) =>
+        {
+            if (request.Current.Files.Count == 0)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["current"] = ["No current implementation was supplied."]
+                });
+            }
+
+            try
+            {
+                var isUi = request.Current.Kind == ImplementationKind.WebComponent;
+                var generation = isUi
+                    ? await generator.RefineWebComponentAsync(
+                        request.RequirementText, request.Specification, request.Current,
+                        request.FailingChecks, request.Feedback, cancellationToken)
+                    : await generator.RefineImplementationAsync(
+                        request.RequirementText, request.Specification, request.Current,
+                        request.UnmetCriteria, request.Feedback, cancellationToken);
+
+                var forge = await pipeline.RunAsync(generation.Implementation, execute: true, cancellationToken);
+
+                var round = new RefinementRound
+                {
+                    Round = Math.Max(1, request.Round),
+                    AddressedCriteria = request.UnmetCriteria,
+                    Feedback = request.Feedback,
+                    Summary = generation.Implementation.Summary,
+                    AllCriteriaMet = forge.RequirementSatisfied
+                };
+
+                return Results.Ok(new ForgeResponse
+                {
+                    Result = (forge with { Interaction = generation.Interaction, Refinement = round }),
+                    RunnerDisabled = !pipeline.RunnerAvailable
+                });
+            }
+            catch (AiBridgeUnreachableException ex)
+            {
+                return Results.Problem(title: "AI Bridge offline", detail: ex.Message,
+                    statusCode: StatusCodes.Status503ServiceUnavailable,
+                    extensions: new Dictionary<string, object?> { ["reason"] = "bridge-unreachable" });
+            }
+            catch (AiCircuitOpenException ex)
+            {
+                return Results.Problem(title: "AI Bridge offline", detail: ex.Message,
+                    statusCode: StatusCodes.Status503ServiceUnavailable,
+                    extensions: new Dictionary<string, object?> { ["reason"] = "circuit-open" });
+            }
+            catch (AiModelException ex)
+            {
+                return Results.Problem(title: "AI model error", detail: ex.Message,
+                    statusCode: StatusCodes.Status502BadGateway,
+                    extensions: new Dictionary<string, object?> { ["reason"] = "model-error" });
+            }
+        })
+        .WithName("ForgeRefine")
+        .WithSummary("Regenerate the artefact to close unmet acceptance criteria or apply feedback.");
+
         return routes;
     }
 }

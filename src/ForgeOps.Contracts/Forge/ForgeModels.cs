@@ -256,6 +256,28 @@ public sealed record AcceptanceOutcome
     public IReadOnlyList<string> EvidenceTests { get; init; } = [];
 }
 
+/// <summary>
+/// One round of refinement: the AI regenerated the artefact to address specific gaps and
+/// optional human feedback (ProjectForge.md §52 — the AI proposes an improvement, evidence
+/// re-verifies it, a human decides).
+/// </summary>
+public sealed record RefinementRound
+{
+    public required int Round { get; init; }
+
+    /// <summary>Acceptance-criterion ids the previous run did not satisfy.</summary>
+    public IReadOnlyList<string> AddressedCriteria { get; init; } = [];
+
+    /// <summary>Free-text change the human asked for (optional).</summary>
+    public string? Feedback { get; init; }
+
+    /// <summary>One line on what changed, from the model.</summary>
+    public string Summary { get; init; } = string.Empty;
+
+    /// <summary>True when every acceptance criterion is satisfied after this round.</summary>
+    public bool AllCriteriaMet { get; init; }
+}
+
 /// <summary>The full outcome of the forge pipeline for one requirement.</summary>
 public sealed record ForgeResult
 {
@@ -267,6 +289,9 @@ public sealed record ForgeResult
     public UiPreview? Ui { get; init; }
     public IReadOnlyList<AcceptanceOutcome> Acceptance { get; init; } = [];
     public AiInteractionRecord? Interaction { get; init; }
+
+    /// <summary>Set when this result came from a refinement round rather than the first generation.</summary>
+    public RefinementRound? Refinement { get; init; }
 
     public bool RequirementSatisfied => Implementation.Kind == ImplementationKind.WebComponent
         // UI acceptance is human visual judgment (§2.1); the audit gates rendering and the

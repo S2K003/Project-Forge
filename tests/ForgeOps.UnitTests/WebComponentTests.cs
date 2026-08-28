@@ -93,6 +93,30 @@ public sealed class LoyaltyCardJourneyTests
     }
 
     [Fact]
+    public void The_refine_step_regenerates_the_component_and_closes_ac2()
+    {
+        var refine = Journey.Steps.Single(s => s.Kind == JourneyStepKind.Refine).Payload;
+
+        Assert.NotNull(refine.Refinement);
+        Assert.True(refine.Refinement!.AllCriteriaMet);
+        Assert.Contains("AC-2", refine.Refinement.AddressedCriteria);
+
+        var ui = refine.Ui!;
+        Assert.False(string.IsNullOrWhiteSpace(ui.DocumentHtml));
+        Assert.Contains("progressbar", ui.DocumentHtml);
+
+        var report = GeneratedCodeAuditor.AuditWebComponent(ui.DocumentHtml, 0);
+        Assert.True(report.ExecutionAllowed);
+    }
+
+    [Fact]
+    public void The_first_attempt_omits_the_tier_progress_bar()
+    {
+        var ui = Journey.Steps.Single(s => s.Kind == JourneyStepKind.AcceptanceRun).Payload.Ui!;
+        Assert.DoesNotContain("progressbar", ui.DocumentHtml);
+    }
+
+    [Fact]
     public void Catalog_exposes_both_journeys_and_defaults_to_the_ui_walkthrough()
     {
         Assert.Contains(JourneyCatalog.All, j => j.Key == "customerhub" && j.Kind == ImplementationKind.CSharpLogic);

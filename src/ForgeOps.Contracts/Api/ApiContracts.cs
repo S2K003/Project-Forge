@@ -54,3 +54,25 @@ public sealed record ExecuteImplementationRequest
 {
     public required GeneratedImplementation Implementation { get; init; }
 }
+
+/// <summary>
+/// Ask the AI to regenerate the current artefact to close unmet acceptance criteria and/or
+/// apply a human's feedback, then re-audit and re-run it.
+/// </summary>
+public sealed record ForgeRefineRequest
+{
+    public required string RequirementText { get; init; }
+    public required SpecificationDraft Specification { get; init; }
+    public required GeneratedImplementation Current { get; init; }
+
+    /// <summary>Acceptance-criterion ids the last run did not satisfy.</summary>
+    public IReadOnlyList<string> UnmetCriteria { get; init; } = [];
+
+    /// <summary>Named checks that failed (web components) or failing test names (logic).</summary>
+    public IReadOnlyList<string> FailingChecks { get; init; } = [];
+
+    /// <summary>Optional free-text change request from the human.</summary>
+    public string? Feedback { get; init; }
+
+    public int Round { get; init; } = 1;
+}

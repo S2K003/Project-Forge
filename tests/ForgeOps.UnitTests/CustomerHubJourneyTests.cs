@@ -38,16 +38,42 @@ public sealed class CustomerHubJourneyTests
     }
 
     [Fact]
-    public void Every_acceptance_criterion_is_satisfied_by_an_executed_test()
+    public void The_first_run_surfaces_an_unmet_acceptance_criterion()
     {
         var run = Journey.Steps.Single(s => s.Kind == JourneyStepKind.AcceptanceRun).Payload;
         Assert.NotNull(run.CanonicalTestRun);
-        Assert.True(run.CanonicalTestRun!.AllPassed);
-        Assert.All(run.Acceptance!, a =>
+        Assert.False(run.CanonicalTestRun!.AllPassed);
+        Assert.Contains(run.Acceptance!, a => a.Status == AcceptanceStatus.NotSatisfied);
+    }
+
+    [Fact]
+    public void Refinement_regenerates_the_code_and_closes_every_criterion()
+    {
+        var refine = Journey.Steps.Single(s => s.Kind == JourneyStepKind.Refine).Payload;
+
+        Assert.NotNull(refine.Refinement);
+        Assert.True(refine.Refinement!.AllCriteriaMet);
+        Assert.NotEmpty(refine.Refinement.AddressedCriteria);
+
+        Assert.NotNull(refine.Implementation);
+        Assert.Contains(refine.Implementation!.Files, f => f.Role == GeneratedFileRole.Implementation);
+
+        Assert.NotNull(refine.CanonicalTestRun);
+        Assert.True(refine.CanonicalTestRun!.AllPassed);
+        Assert.All(refine.Acceptance!, a =>
         {
             Assert.Equal(AcceptanceStatus.Satisfied, a.Status);
             Assert.NotEmpty(a.EvidenceTests);
         });
+    }
+
+    [Fact]
+    public void The_refine_step_shows_the_updated_execution_walkthrough()
+    {
+        var scenario = Journey.Steps.Single(s => s.Kind == JourneyStepKind.Refine).Payload.Scenario;
+        Assert.NotNull(scenario);
+        Assert.True(scenario!.Executed);
+        Assert.All(scenario.Steps, s => Assert.False(string.IsNullOrWhiteSpace(s.Output)));
     }
 
     [Fact]

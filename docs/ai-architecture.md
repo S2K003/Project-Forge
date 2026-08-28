@@ -132,10 +132,18 @@ SandboxRunner → ForgeOps.Forge.Sandbox   separate process, curated references,
    │                                     wall-clock budget, process-tree kill
    ▼
 canonical acceptance suite runs → results mapped to AC-1…AC-n
+   │   (any AC unsatisfied, or a human wants a change)
+   ▼
+CodeGenerator.RefineImplementationAsync / RefineWebComponentAsync
+   │   unmet criteria + failing checks + free-text feedback → model regenerates the artefact
+   ▼   re-audit → re-run → new RefinementRound; a human still approves. Repeatable.
 ```
 
 - Endpoints: `POST /api/forge/run` (generate + audit, `execute:false`),
-  `POST /api/forge/execute` (audit + sandbox-run an already-generated implementation).
+  `POST /api/forge/execute` (audit + sandbox-run an already-generated implementation),
+  `POST /api/forge/refine` (regenerate to close unmet criteria / apply feedback, then
+  re-audit and re-run — returns a `ForgeResponse` whose `Result.Refinement` describes the
+  round). Prompt versions `impl.refine.v1` / `webcomp.refine.v1`.
 - Execution posture is config: `CodeRunner:Enabled=false` on a shared host stops after the
   audit. Full guardrails and their limits: [decisions/0002-generated-code-execution.md](decisions/0002-generated-code-execution.md).
 

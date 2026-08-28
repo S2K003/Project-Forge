@@ -14,9 +14,11 @@ namespace ForgeOps.UnitTests;
 /// </summary>
 public sealed class ForgePipelineTests
 {
+    // The implementation that actually ships is the refined one — the first attempt
+    // deliberately fails canonical AC-2 (see the Refine step and the non-idempotent test below).
     private static GeneratedImplementation RecordedImplementation() =>
         CustomerHubJourney.Build().Steps
-            .Single(s => s.Kind == JourneyStepKind.Implementation)
+            .Single(s => s.Kind == JourneyStepKind.Refine)
             .Payload.Implementation!;
 
     private static ForgePipeline BuildPipeline()

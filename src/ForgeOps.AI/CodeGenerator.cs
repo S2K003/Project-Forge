@@ -127,6 +127,197 @@ public sealed class CodeGenerator
         return total;
     }
 
+    // --- Refinement -------------------------------------------------------
+
+    /// <summary>
+    /// Regenerate a C# implementation + tests to close the given unmet acceptance criteria
+    /// and/or apply human feedback. Bounded compile-error repair; on failure the current
+    /// implementation is kept unchanged.
+    /// </summary>
+    public async Task<CodeGenerationResult> RefineImplementationAsync(
+        string requirementText,
+        SpecificationDraft specification,
+        GeneratedImplementation current,
+        IReadOnlyList<string> unmetCriteria,
+        string? feedback,
+        CancellationToken cancellationToken = default)
+    {
+        var criteria = string.Join("\n", specification.AcceptanceCriteria.Select(c => $"- {c.Id}: {c.Statement}"));
+        var unmet = string.Join("\n", specification.AcceptanceCriteria
+            .Where(c => unmetCriteria.Contains(c.Id))
+            .Select(c => $"- {c.Id}: {c.Statement}"));
+        var currentRendered = string.Join("\n\n", current.Files.Select(f => $"// {f.Path}\n{f.Content}"));
+
+        long latency = 0;
+        string provider = _provider.Name, model = "unknown", raw = string.Empty;
+        CodeDraft? draft = null;
+        var lastErrors = string.Empty;
+
+        for (var attempt = 0; attempt <= 2; attempt++)
+        {
+            var request = new AiRequest
+            {
+                SystemInstructions = CodeGenPrompts.RefineSystem,
+                TrustedContext = attempt == 0
+                    ? CodeGenPrompts.BuildRefineContext(requirementText, criteria, unmet, feedback, currentRendered)
+                    : CodeGenPrompts.BuildRefineContext(requirementText, criteria, unmet, feedback, currentRendered)
+                      + "\n\n" + CodeGenPrompts.BuildRepairContext(lastErrors, RenderFiles(draft)),
+                UntrustedContent = feedback ?? requirementText,
+                PromptVersion = CodeGenPrompts.RefineVersion,
+                SchemaName = nameof(CodeDraft)
+            };
+
+            var response = await _provider.GenerateAsync<CodeDraft>(request, cancellationToken).ConfigureAwait(false);
+            latency += response.LatencyMs;
+            provider = response.Provider;
+            model = response.Model;
+            raw = response.RawText;
+
+            if (response.Value is null || response.Value.Files.Count == 0)
+            {
+                continue;
+            }
+
+            draft = response.Value;
+            var files = ToGeneratedFiles(draft);
+            var compile = _compiler.Compile("ForgeOps.Generated.RefineCheck", BuildImplCompileSet(files));
+            if (compile.Success)
+            {
+                _telemetry.RecordRequest("refine-implementation", latency, success: true);
+                return BuildRefined(files, draft.Summary, draft.Rationale, provider, model, raw, latency,
+                    ImplementationKind.CSharpLogic, compiled: true);
+            }
+
+            lastErrors = string.Join("\n", compile.Errors.Select(e => $"{e.File}({e.Line}): {e.Code}: {e.Message}").Take(10));
+        }
+
+        _telemetry.RecordRequest("refine-implementation", latency, success: false);
+        _logger.LogWarning("Refinement did not produce compiling code — keeping the current implementation.");
+        return new CodeGenerationResult(
+            current with { Summary = current.Summary + " (refinement did not compile — unchanged)" },
+            RefineInteraction(provider, model, raw, latency, CodeGenPrompts.RefineVersion, valid: false),
+            Compiled: true);
+    }
+
+    /// <summary>Regenerate a web component to fix failing checks / apply feedback. Keeps styling.</summary>
+    public async Task<CodeGenerationResult> RefineWebComponentAsync(
+        string requirementText,
+        SpecificationDraft specification,
+        GeneratedImplementation current,
+        IReadOnlyList<string> failingChecks,
+        string? feedback,
+        CancellationToken cancellationToken = default)
+    {
+        var criteria = string.Join("\n", specification.AcceptanceCriteria.Select(c => $"- {c.Id}: {c.Statement}"));
+        var currentHtml = current.Files.FirstOrDefault(f => f.Role == GeneratedFileRole.Implementation)?.Content ?? "";
+        var failing = failingChecks.Count == 0 ? "(none reported)" : string.Join("\n", failingChecks.Select(c => $"- {c}"));
+
+        long latency = 0;
+        string provider = _provider.Name, model = "unknown", raw = string.Empty;
+        WebDraft? draft = null;
+        string? repairContext = null;
+
+        for (var attempt = 0; attempt <= 2; attempt++)
+        {
+            var request = new AiRequest
+            {
+                SystemInstructions = CodeGenPrompts.WebComponentRefineSystem,
+                TrustedContext = (repairContext ?? CodeGenPrompts.BuildRefineContext(
+                    requirementText, criteria, "Failing checks:\n" + failing, feedback, currentHtml)),
+                UntrustedContent = feedback ?? requirementText,
+                PromptVersion = CodeGenPrompts.WebComponentRefineVersion,
+                SchemaName = nameof(WebDraft)
+            };
+
+            var response = await _provider.GenerateAsync<WebDraft>(request, cancellationToken).ConfigureAwait(false);
+            latency += response.LatencyMs;
+            provider = response.Provider;
+            model = response.Model;
+            raw = response.RawText;
+
+            if (response.Value is null || string.IsNullOrWhiteSpace(response.Value.Html))
+            {
+                continue;
+            }
+
+            draft = response.Value;
+            var html = StripFences(draft.Html);
+            var banned = HtmlAuditor.Scan(html);
+            var (structureOk, _) = HtmlAuditor.CheckStructure(html);
+
+            if (banned.Count > 0 || !structureOk)
+            {
+                repairContext = CodeGenPrompts.BuildWebRepairContext(
+                    string.Join("\n", banned.Select(b => $"line {b.Line}: {b.Api} — {b.Reason}")
+                        .DefaultIfEmpty("structure: not a self-contained document")), html);
+                continue;
+            }
+
+            if (StyleLength(html) < MinMeaningfulCssChars && attempt < 2)
+            {
+                repairContext = CodeGenPrompts.BuildWebStyleRepairContext(html);
+                continue;
+            }
+
+            _telemetry.RecordRequest("refine-web-component", latency, success: true);
+            var files = new List<GeneratedFile> { new() { Path = "index.html", Language = "html", Content = html } };
+            var impl = BuildRefined(files, draft.Summary, draft.Rationale, provider, model, raw, latency,
+                ImplementationKind.WebComponent, compiled: true);
+            return impl with
+            {
+                Implementation = impl.Implementation with
+                {
+                    UiChecks = (draft.Checks ?? [])
+                        .Where(c => !string.IsNullOrWhiteSpace(c.Title) && !string.IsNullOrWhiteSpace(c.Script))
+                        .Select(c => new UiCheck { Title = c.Title.Trim(), Script = c.Script.Trim() }).ToList(),
+                    ReviewNotes = (draft.ReviewNotes ?? []).Where(n => !string.IsNullOrWhiteSpace(n)).ToList()
+                }
+            };
+        }
+
+        _telemetry.RecordRequest("refine-web-component", latency, success: false);
+        return new CodeGenerationResult(
+            current with { Summary = current.Summary + " (refinement failed the audit — unchanged)" },
+            RefineInteraction(provider, model, raw, latency, CodeGenPrompts.WebComponentRefineVersion, valid: false),
+            Compiled: true);
+    }
+
+    private static CodeGenerationResult BuildRefined(
+        IReadOnlyList<GeneratedFile> files, string summary, string rationale,
+        string provider, string model, string raw, long latencyMs, ImplementationKind kind, bool compiled)
+    {
+        var implementation = new GeneratedImplementation
+        {
+            Summary = string.IsNullOrWhiteSpace(summary) ? "Refined implementation." : summary,
+            Rationale = rationale,
+            Kind = kind,
+            Files = files,
+            Origin = ImplementationOrigin.ModelWithRepairs
+        };
+
+        var prompt = kind == ImplementationKind.WebComponent
+            ? CodeGenPrompts.WebComponentRefineVersion
+            : CodeGenPrompts.RefineVersion;
+
+        return new CodeGenerationResult(implementation,
+            RefineInteraction(provider, model, raw, latencyMs, prompt, valid: compiled), compiled);
+    }
+
+    private static AiInteractionRecord RefineInteraction(
+        string provider, string model, string raw, long latencyMs, string promptVersion, bool valid) => new()
+    {
+        Id = Guid.NewGuid().ToString("n"),
+        Provider = provider,
+        Model = model,
+        ModelVersion = model,
+        PromptVersion = promptVersion,
+        RequestedAt = DateTimeOffset.UtcNow,
+        LatencyMs = latencyMs,
+        RawResponse = raw,
+        Validation = valid ? AiValidationResult.Ok() : AiValidationResult.Fail("Refinement did not produce a usable artefact."),
+        Simulated = false
+    };
+
     private CodeGenerationResult BuildWeb(
         string html, WebDraft? draft, int repairAttempts,
         string provider, string model, string raw, long latencyMs, bool valid)

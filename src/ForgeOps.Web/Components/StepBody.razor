@@ -160,6 +160,91 @@
             </div>
             break;
 
+        case JourneyStepKind.Refine when Step.Payload.Refinement is { } round:
+            <div class="panel panel--focus panel__pad">
+                <div class="spread">
+                    <span class="panel__title">@(round.Round == 0 ? "Refinement" : $"Refinement round {round.Round}")</span>
+                    <span class="chip @(round.AllCriteriaMet ? "is-pass" : "is-warn")">
+                        @(round.AllCriteriaMet ? "all criteria met" : "criteria still open")
+                    </span>
+                </div>
+                <p class="mt-2">@round.Summary</p>
+                @if (round.AddressedCriteria.Count > 0)
+                {
+                    <div class="row mt-2 small" style="gap:6px;flex-wrap:wrap">
+                        <span class="muted">Addressed:</span>
+                        @foreach (var c in round.AddressedCriteria)
+                        {
+                            <span class="chip is-info">@c</span>
+                        }
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(round.Feedback))
+                {
+                    <p class="small muted mt-2">Human feedback: “@round.Feedback”</p>
+                }
+            </div>
+
+            @if (Mode == AppMode.Live)
+            {
+                <div class="panel panel__pad mt-3">
+                    <div class="panel__title">Ask for another change</div>
+                    <textarea class="input mt-2" rows="2" style="font-size:15px;line-height:1.5"
+                              value="@RefineFeedback"
+                              @oninput="e => OnRefineFeedbackChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)"
+                              placeholder="e.g. make the tier badge larger, or: also handle a negative balance"></textarea>
+                    <button class="btn mt-2" @onclick="() => OnRefineAgain.InvokeAsync()">↻ Refine again</button>
+                </div>
+            }
+
+            @if (Step.Payload.Ui is { DocumentHtml.Length: > 0 } rui)
+            {
+                <div class="mt-3"><UiPreviewPanel Preview="rui" OnResults="OnUiResults" /></div>
+                @if (Step.Payload.Implementation is { } ruimpl)
+                {
+                    <details class="panel panel__pad mt-3">
+                        <summary class="muted small">Show the regenerated markup (@ruimpl.Files.Count file(s))</summary>
+                        <div class="stack mt-2">
+                            @foreach (var file in ruimpl.Files)
+                            {
+                                <CodeBlock Path="@file.Path" Role="web component" Content="@file.Content" />
+                            }
+                        </div>
+                    </details>
+                }
+            }
+            else if (Step.Payload.Implementation is { } rimpl)
+            {
+                <div class="stack mt-3">
+                    @foreach (var file in rimpl.Files)
+                    {
+                        <CodeBlock Path="@file.Path" Role="@(file.Role.ToString().ToLowerInvariant())" Content="@file.Content" />
+                    }
+                </div>
+            }
+            @if (Step.Payload.Scenario is not null)
+            {
+                <div class="mt-3"><ScenarioView Run="Step.Payload.Scenario" /></div>
+            }
+            @if (Step.Payload.Acceptance is { Count: > 0 })
+            {
+                <div class="mt-3"><AcceptanceView Outcomes="Step.Payload.Acceptance" /></div>
+            }
+            @if (Step.Payload.CanonicalTestRun is not null)
+            {
+                <div class="mt-3"><TestRunView Title="ForgeOps canonical acceptance suite" Run="Step.Payload.CanonicalTestRun" /></div>
+            }
+            @if (Step.Payload.AiTestRun is not null)
+            {
+                <div class="mt-3"><TestRunView Title="Model's own tests" Run="Step.Payload.AiTestRun" /></div>
+            }
+            <AiInteractionCard Interaction="Step.Payload.AiInteraction" />
+            break;
+
+        case JourneyStepKind.Refine:
+            <div class="panel panel__pad muted">The AI refines the artefact here once a run has left something unmet.</div>
+            break;
+
         case JourneyStepKind.QualityGates:
             <div class="panel panel--strong panel__pad">
                 <GateTimeline Gates="Step.Payload.Gates ?? []" />
@@ -265,6 +350,9 @@
     [Parameter] public string RequirementText { get; set; } = "";
     [Parameter] public EventCallback<string> OnRequirementChanged { get; set; }
     [Parameter] public EventCallback<IReadOnlyList<Contracts.Forge.UiCheckResult>> OnUiResults { get; set; }
+    [Parameter] public string RefineFeedback { get; set; } = "";
+    [Parameter] public EventCallback<string> OnRefineFeedbackChanged { get; set; }
+    [Parameter] public EventCallback OnRefineAgain { get; set; }
 
     private string ModeSignInHint => Mode == AppMode.Demo
         ? "Demo Mode entry point — not real authentication."

@@ -40,7 +40,9 @@ Sign in → requirement → **AI specification** → human review → **AI imple
 (`HtmlAuditor` — no network / storage / `eval` / external resources; a hit blocks
 rendering) → quality gates → **AI review** → **human decision** → **run & verify**
 (**the component is rendered live in a locked-down sandboxed iframe**, and the model's
-behavioural self-checks run against it) → merge → telemetry → **engineering health**.
+behavioural self-checks run against it) → **AI refinement** (the first attempt omits the
+tier progress bar — AC-2; the AI regenerates the component to close it and ForgeOps
+re-audits and re-renders it) → merge → telemetry → **engineering health**.
 
 ### Loyalty rules — a backend requirement
 
@@ -49,12 +51,17 @@ behavioural self-checks run against it) → merge → telemetry → **engineerin
 … → **AI implementation** (`LoyaltyService` + tests, compile-error repair loop) →
 **deterministic audit** (Roslyn compile, analyzers, banned-API scan) → … → **run & verify**
 (the sandbox **executes** ForgeOps' own acceptance suite against the generated code and
-maps every result to an acceptance criterion) → merge → …
+maps every result to an acceptance criterion) → **AI refinement** (the first attempt is
+not idempotent and fails canonical AC-2; the AI regenerates it, ForgeOps re-audits and
+re-runs, and 6/6 pass) → merge → …
 
 The payoff is real: ForgeOps generates working code and *proves* it satisfies the
 requirement — by rendering it, or by running it. The §31 bug is genuinely detectable — a
 weak logic implementation passes the model's own tests but fails ForgeOps' canonical AC-2
-"duplicate payment event" test.
+"duplicate payment event" test — and the **refinement step closes the loop**: the AI
+regenerates the artefact to address exactly what the last run left unmet (or a human's
+typed feedback), then the evidence is re-gathered and a human still decides (§52). In Live
+Mode the refinement is repeatable — a "Refine again" box takes free-text change requests.
 
 ---
 

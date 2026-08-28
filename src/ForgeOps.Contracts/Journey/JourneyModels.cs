@@ -21,9 +21,16 @@ public enum JourneyStepKind
     AiReview = 7,
     HumanDecision = 8,
     AcceptanceRun = 9,
-    Merge = 10,
-    Telemetry = 11,
-    EngineeringHealth = 12
+
+    /// <summary>
+    /// The AI regenerates the artefact to close any unmet acceptance criteria or apply
+    /// human feedback; ForgeOps re-audits and re-runs it. Repeatable (ProjectForge.md §4,
+    /// §52 — AI proposes, evidence and a human decide).
+    /// </summary>
+    Refine = 10,
+    Merge = 11,
+    Telemetry = 12,
+    EngineeringHealth = 13
 }
 
 public enum JourneyStepState
@@ -104,6 +111,8 @@ public sealed record StepPayload
     public UiPreview? Ui { get; init; }
 
     public IReadOnlyList<AcceptanceOutcome>? Acceptance { get; init; }
+
+    public RefinementRound? Refinement { get; init; }
 
     public IReadOnlyList<string>? Notes { get; init; }
 }
