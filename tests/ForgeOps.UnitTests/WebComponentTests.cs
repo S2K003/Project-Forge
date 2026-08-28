@@ -18,6 +18,8 @@ public sealed class RequirementClassifierTests
     [InlineData("Show a customer's loyalty status as a compact card with points and tier.")]
     [InlineData("Build a dark-mode dashboard widget showing recent activity.")]
     [InlineData("Design a sign-in form with email and password fields and a submit button.")]
+    [InlineData("Show a weekly workout plan as a card with 5 day rows and a progress count.")]
+    [InlineData("A pricing table with three plans and a highlighted recommended tier.")]
     public void Ui_requirements_classify_as_web_component(string requirement) =>
         Assert.Equal(ImplementationKind.WebComponent, RequirementClassifier.Classify(requirement));
 }

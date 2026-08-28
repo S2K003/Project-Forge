@@ -42,6 +42,10 @@ dotnet run --project src/ForgeOps.Web
 Then choose **Live Mode**. If Ollama is not running you get the Connection Gate — that is
 the designed behaviour.
 
+In Live Mode the **Requirement step is an editable text box** — type whatever you want to
+build. ForgeOps classifies it (UI component vs backend logic) and runs the same journey:
+spec → generate → deterministic audit → human decision → render / execute → health.
+
 ## Solution layout
 
 ```

@@ -114,10 +114,18 @@
         // Strict CSP: no network of any kind from inside the frame, whatever the markup says.
         const string csp = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src data:; media-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:;\">";
 
+        // A readable floor so a weakly-styled component is never raw white-on-black text.
+        // The model's own <style> is injected after this and wins.
+        const string floor =
+            "<style>html,body{height:100%}body{margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;" +
+            "font-size:14px;line-height:1.55;color:#e8ebf1;background:#0b0d12;display:flex;flex-wrap:wrap;gap:16px;align-content:flex-start}" +
+            "h1,h2,h3{margin:0 0 .3em;line-height:1.2}p{margin:0 0 .6em}ul,ol{margin:0 0 .6em;padding-left:1.2em}" +
+            "*{box-sizing:border-box}</style>";
+
         var headIdx = html.IndexOf("<head>", StringComparison.OrdinalIgnoreCase);
         html = headIdx >= 0
-            ? html.Insert(headIdx + 6, csp)
-            : csp + html;
+            ? html.Insert(headIdx + 6, csp + floor)
+            : csp + floor + html;
 
         // Register each check as a real inline <script> (allowed by script-src 'unsafe-inline'),
         // so the harness never needs eval / 'unsafe-eval'.

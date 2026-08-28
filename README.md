@@ -27,7 +27,9 @@ Same journey, same components, same UI — only the data source and the mode bad
 
 ## The journey
 
-Two scenarios ship, switchable in the nav; Demo/Live Mode **opens on the UI one**.
+Two seeded scenarios ship, switchable in the nav; Demo/Live Mode **opens on the UI one**.
+In **Live Mode the requirement is an editable text box** — type whatever you want to build
+and ForgeOps classifies and runs it.
 
 ### Loyalty status card — a UI requirement *(default)*
 

@@ -24,7 +24,19 @@
         case JourneyStepKind.Requirement:
             <div class="panel panel--strong panel__pad">
                 <div class="panel__title">Requirement</div>
-                <p style="font-size:18px;line-height:1.5" class="mt-2">“@Definition?.RequirementText”</p>
+                @if (Mode == AppMode.Live)
+                {
+                    <p class="small muted mt-1">Edit this to build whatever you want. ForgeOps classifies it as a UI component or backend logic and takes it from there.</p>
+                    <textarea class="input mt-2" rows="4" style="font-size:16px;line-height:1.5"
+                              value="@RequirementText"
+                              @oninput="e => OnRequirementChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)"
+                              placeholder="e.g. Show a weekly sales summary as a bar chart with a total, or: Validate an email address and return a normalised form"></textarea>
+                    <div class="small muted mt-1">@RequirementText.Length characters</div>
+                }
+                else
+                {
+                    <p style="font-size:18px;line-height:1.5" class="mt-2">“@(RequirementText.Length > 0 ? RequirementText : Definition?.RequirementText)”</p>
+                }
             </div>
             break;
 
@@ -250,6 +262,8 @@
     [Parameter] public JourneyStep? Step { get; set; }
     [Parameter] public JourneyDefinition? Definition { get; set; }
     [Parameter] public AppMode Mode { get; set; }
+    [Parameter] public string RequirementText { get; set; } = "";
+    [Parameter] public EventCallback<string> OnRequirementChanged { get; set; }
     [Parameter] public EventCallback<IReadOnlyList<Contracts.Forge.UiCheckResult>> OnUiResults { get; set; }
 
     private string ModeSignInHint => Mode == AppMode.Demo

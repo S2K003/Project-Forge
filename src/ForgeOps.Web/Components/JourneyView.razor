@@ -19,7 +19,9 @@
         }
         else
         {
-            <StepBody Step="Player.Current" Definition="Player.Definition" Mode="Player.Mode" OnUiResults="Player.SetUiResults" />
+            <StepBody Step="Player.Current" Definition="Player.Definition" Mode="Player.Mode"
+                      RequirementText="Player.RequirementText" OnRequirementChanged="Player.SetRequirement"
+                      OnUiResults="Player.SetUiResults" />
         }
 
         <div class="row mt-4">

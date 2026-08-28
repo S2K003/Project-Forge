@@ -33,9 +33,12 @@ public sealed class CodeGenerator
         _logger = logger;
     }
 
+    private const int MinMeaningfulCssChars = 400;
+
     /// <summary>
-    /// Generate a self-contained web component from an approved specification, with one
-    /// audit-repair round. The component is later rendered in a sandboxed iframe.
+    /// Generate a self-contained web component from an approved specification, with up to
+    /// two repair rounds (deterministic audit + a "no meaningful CSS" gate). The component
+    /// is later rendered in a sandboxed iframe.
     /// </summary>
     public async Task<CodeGenerationResult> GenerateWebComponentAsync(
         string requirementText,
@@ -48,17 +51,15 @@ public sealed class CodeGenerator
         long latency = 0;
         string provider = _provider.Name, model = "unknown", raw = string.Empty;
         WebDraft? draft = null;
-        var lastFindings = string.Empty;
+        string? repairContext = null;
         var attempts = 0;
 
-        for (; attempts <= 1; attempts++)
+        for (; attempts <= 2; attempts++)
         {
             var request = new AiRequest
             {
                 SystemInstructions = CodeGenPrompts.WebComponentSystem,
-                TrustedContext = attempts == 0
-                    ? context
-                    : context + "\n\n" + CodeGenPrompts.BuildWebRepairContext(lastFindings, draft?.Html ?? ""),
+                TrustedContext = repairContext is null ? context : context + "\n\n" + repairContext,
                 UntrustedContent = requirementText,
                 PromptVersion = CodeGenPrompts.WebComponentVersion,
                 SchemaName = nameof(WebDraft)
@@ -79,17 +80,51 @@ public sealed class CodeGenerator
             var html = StripFences(draft.Html);
             var banned = HtmlAuditor.Scan(html);
             var (structureOk, _) = HtmlAuditor.CheckStructure(html);
-            if (banned.Count == 0 && structureOk)
+
+            if (banned.Count > 0 || !structureOk)
             {
-                return BuildWeb(html, draft, attempts, provider, model, raw, latency, valid: true);
+                repairContext = CodeGenPrompts.BuildWebRepairContext(
+                    string.Join("\n", banned.Select(b => $"line {b.Line}: {b.Api} — {b.Reason}")
+                        .DefaultIfEmpty("structure: not a self-contained document")),
+                    html);
+                continue;
             }
 
-            lastFindings = string.Join("\n",
-                banned.Select(b => $"line {b.Line}: {b.Api} — {b.Reason}").DefaultIfEmpty("structure: not a self-contained document"));
+            var cssLength = StyleLength(html);
+            if (cssLength < MinMeaningfulCssChars && attempts < 2)
+            {
+#pragma warning disable CA1873
+                _logger.LogInformation("Web component has trivial CSS ({Chars} chars) — requesting a style pass", cssLength);
+#pragma warning restore CA1873
+                repairContext = CodeGenPrompts.BuildWebStyleRepairContext(html);
+                continue;
+            }
+
+            return BuildWeb(html, draft, attempts, provider, model, raw, latency, valid: true);
         }
 
         var lastHtml = draft is null ? string.Empty : StripFences(draft.Html);
         return BuildWeb(lastHtml, draft, attempts - 1, provider, model, raw, latency, valid: !string.IsNullOrWhiteSpace(lastHtml));
+    }
+
+    private static int StyleLength(string html)
+    {
+        var total = 0;
+        var idx = 0;
+        while ((idx = html.IndexOf("<style", idx, StringComparison.OrdinalIgnoreCase)) >= 0)
+        {
+            var open = html.IndexOf('>', idx);
+            var close = open >= 0 ? html.IndexOf("</style", open, StringComparison.OrdinalIgnoreCase) : -1;
+            if (open < 0 || close < 0)
+            {
+                break;
+            }
+
+            total += close - open - 1;
+            idx = close + 7;
+        }
+
+        return total;
     }
 
     private CodeGenerationResult BuildWeb(

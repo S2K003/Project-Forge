@@ -64,7 +64,14 @@ public sealed class OllamaBridgeProvider : IAiProvider
             Stream = false,
             Format = "json",
             // qwen3 is a reasoning model; disable the think phase so constrained JSON is fast and reliable.
-            Think = false
+            Think = false,
+            Options = new OllamaOptions
+            {
+                // Lower temperature for code/markup; give it room for a full styled document.
+                Temperature = 0.35,
+                NumCtx = 8192,
+                NumPredict = 4096
+            }
         };
 
         var client = _httpClientFactory.CreateClient(HttpClientName);
@@ -164,6 +171,14 @@ public sealed class OllamaBridgeProvider : IAiProvider
         [JsonPropertyName("stream")] public bool Stream { get; init; }
         [JsonPropertyName("format")] public string? Format { get; init; }
         [JsonPropertyName("think")] public bool Think { get; init; }
+        [JsonPropertyName("options")] public OllamaOptions? Options { get; init; }
+    }
+
+    private sealed record OllamaOptions
+    {
+        [JsonPropertyName("temperature")] public double Temperature { get; init; }
+        [JsonPropertyName("num_ctx")] public int NumCtx { get; init; }
+        [JsonPropertyName("num_predict")] public int NumPredict { get; init; }
     }
 
     private sealed record OllamaGenerateResponse

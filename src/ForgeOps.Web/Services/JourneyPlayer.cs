@@ -30,6 +30,23 @@ public sealed class JourneyPlayer
     public bool IsThinking { get; private set; }
     public string? ThinkingLabel { get; private set; }
 
+    private string? _requirementOverride;
+
+    /// <summary>The requirement being built — the user's edit in Live Mode, else the scenario's.</summary>
+    public string RequirementText => string.IsNullOrWhiteSpace(_requirementOverride)
+        ? Definition?.RequirementText ?? string.Empty
+        : _requirementOverride!;
+
+    public bool RequirementEdited => !string.IsNullOrWhiteSpace(_requirementOverride)
+        && _requirementOverride!.Trim() != (Definition?.RequirementText ?? string.Empty).Trim();
+
+    /// <summary>Live Mode: the user edited the requirement before generating the specification.</summary>
+    public void SetRequirement(string text)
+    {
+        _requirementOverride = text;
+        Changed?.Invoke();
+    }
+
     public IReadOnlyList<JourneyStep> Steps => _steps;
     public JourneyStep? Current => _steps.Count > 0 ? _steps[CurrentIndex] : null;
     public bool IsComplete => Current is { Kind: JourneyStepKind.EngineeringHealth, State: JourneyStepState.Active or JourneyStepState.Complete };
@@ -55,6 +72,7 @@ public sealed class JourneyPlayer
         IsThinking = false;
         ThinkingLabel = null;
         _liveImplementation = null;
+        _requirementOverride = null;
         Changed?.Invoke();
     }
 
@@ -144,18 +162,20 @@ public sealed class JourneyPlayer
     private async Task<AdvanceResult> RunLiveImplementationAsync(JourneyStep step)
     {
         IsThinking = true;
-        ThinkingLabel = "qwen3:8b is writing the implementation and tests…";
+        ThinkingLabel = "qwen3:8b is building the implementation…";
         Changed?.Invoke();
 
         try
         {
-            var spec = Definition!.Steps.First(s => s.Kind == JourneyStepKind.Specification).Payload.Specification;
+            var spec = _steps.First(s => s.Kind == JourneyStepKind.Specification).Payload.Specification;
             if (spec is null)
             {
                 return AdvanceResult.ModelError("No approved specification is available.");
             }
 
-            var result = await _api.ForgeGenerateAsync(Definition.RequirementText, spec, Definition.ProjectName, Definition.Kind);
+            // Let the API classify the (possibly user-edited) requirement rather than assuming
+            // the scenario's kind.
+            var result = await _api.ForgeGenerateAsync(RequirementText, spec, Definition!.ProjectName, kind: null);
             if (result.IsBridgeOffline)
             {
                 return AdvanceResult.BridgeOffline(result.FailureDetail ?? "AI Bridge is offline.");
@@ -193,21 +213,27 @@ public sealed class JourneyPlayer
 
             ApplyAudit(forge);
 
-            if (isUi)
+            var runIndex = _steps.FindIndex(s => s.Kind == JourneyStepKind.AcceptanceRun);
+            if (runIndex >= 0)
             {
-                // The whole forge result (impl + audit + component) comes from this one call;
-                // the Run step just renders it client-side.
-                var runIndex = _steps.FindIndex(s => s.Kind == JourneyStepKind.AcceptanceRun);
-                if (runIndex >= 0)
+                _steps[runIndex] = _steps[runIndex] with
                 {
-                    _steps[runIndex] = _steps[runIndex] with
+                    Caption = isUi
+                        ? "The generated component, rendered in a locked-down sandboxed iframe."
+                        : "The sandbox executes the acceptance suite against the generated code.",
+                    // Reset stale recorded payloads — the requirement may have classified differently.
+                    Payload = _steps[runIndex].Payload with
                     {
-                        Caption = "The generated component, rendered in a locked-down sandboxed iframe.",
-                        Payload = _steps[runIndex].Payload with { Ui = forge.Ui, Acceptance = SpecAcceptance() }
-                    };
-                }
+                        Ui = isUi ? forge.Ui : null,
+                        Scenario = null,
+                        AiTestRun = null,
+                        CanonicalTestRun = null,
+                        Acceptance = SpecAcceptance()
+                    }
+                };
             }
 
+            ClearRecordedReviewIfEdited();
             return AdvanceResult.Ok;
         }
         finally
@@ -275,7 +301,8 @@ public sealed class JourneyPlayer
     /// <summary>The spec's acceptance criteria as a reviewer checklist (UI acceptance is human-judged, §2.1).</summary>
     private List<AcceptanceOutcome> SpecAcceptance()
     {
-        var spec = Definition?.Steps.FirstOrDefault(s => s.Kind == JourneyStepKind.Specification)?.Payload.Specification;
+        var specStep = _steps.FirstOrDefault(s => s.Kind == JourneyStepKind.Specification);
+        var spec = specStep?.Payload.Specification;
         return spec is null
             ? []
             : spec.AcceptanceCriteria
@@ -397,16 +424,47 @@ public sealed class JourneyPlayer
         };
     }
 
+    /// <summary>
+    /// When the user has edited the requirement, the seeded AI-review findings (about the
+    /// scenario's fixed artefact) no longer apply — replace them with an honest note.
+    /// </summary>
+    private void ClearRecordedReviewIfEdited()
+    {
+        if (!RequirementEdited)
+        {
+            return;
+        }
+
+        var idx = _steps.FindIndex(s => s.Kind == JourneyStepKind.AiReview);
+        if (idx >= 0)
+        {
+            _steps[idx] = _steps[idx] with
+            {
+                Caption = "AI review over the generated artefact.",
+                Payload = _steps[idx].Payload with
+                {
+                    ReviewFindings = [],
+                    AiInteraction = null,
+                    Notes = ["AI code review over a custom artefact is not wired in this build — the deterministic audit and the run step above are the live evidence."]
+                }
+            };
+        }
+    }
+
     private async Task<AdvanceResult> RunLiveSpecificationAsync(JourneyStep step)
     {
         IsThinking = true;
-        ThinkingLabel = "Calling qwen3:8b through the AI Bridge…";
+        ThinkingLabel = "qwen3:8b is drafting the specification…";
         Changed?.Invoke();
 
         try
         {
-            var result = await _api.GenerateSpecificationAsync(
-                Definition!.RequirementText, Definition.ProjectName);
+            if (string.IsNullOrWhiteSpace(RequirementText))
+            {
+                return AdvanceResult.ModelError("Enter a requirement first.");
+            }
+
+            var result = await _api.GenerateSpecificationAsync(RequirementText, Definition!.ProjectName);
 
             if (result.IsBridgeOffline)
             {
