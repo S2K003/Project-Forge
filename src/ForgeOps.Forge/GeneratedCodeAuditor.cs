@@ -15,6 +15,34 @@ public sealed class GeneratedCodeAuditor
 
     public GeneratedCodeAuditor(RoslynCompiler compiler) => _compiler = compiler;
 
+    /// <summary>Deterministic gate over a generated web component before it is rendered.</summary>
+    public static AuditReport AuditWebComponent(string html, int repairAttempts)
+    {
+        var banned = HtmlAuditor.Scan(html);
+        var (structureOk, notes) = HtmlAuditor.CheckStructure(html);
+        var parsedOk = !string.IsNullOrWhiteSpace(html) && html.Contains('<');
+
+        var verdict = (banned.Count, parsedOk, structureOk) switch
+        {
+            ( > 0, _, _) => AuditVerdict.Failed,
+            (_, false, _) => AuditVerdict.Failed,
+            (_, _, false) => AuditVerdict.PassedWithWarnings,
+            _ => AuditVerdict.Passed
+        };
+
+        return new AuditReport
+        {
+            Kind = ImplementationKind.WebComponent,
+            Compiled = parsedOk,
+            RepairAttempts = repairAttempts,
+            Diagnostics = [],
+            BannedApis = banned,
+            ArchitecturePassed = structureOk,
+            ArchitectureNotes = notes,
+            Verdict = verdict
+        };
+    }
+
     public AuditResult Audit(IReadOnlyList<GeneratedFile> authorFiles, int repairAttempts)
     {
         var authorSources = authorFiles.ToDictionary(f => f.Path, f => f.Content);

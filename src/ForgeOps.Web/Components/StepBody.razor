@@ -95,9 +95,13 @@
             <div class="stack mt-3">
                 @foreach (var file in impl.Files)
                 {
-                    <CodeBlock Path="@file.Path" Role="@file.Role.ToString().ToLowerInvariant()" Content="@file.Content" />
+                    <CodeBlock Path="@file.Path" Role="@(impl.Kind == Contracts.Forge.ImplementationKind.WebComponent ? "web component" : file.Role.ToString().ToLowerInvariant())" Content="@file.Content" />
                 }
             </div>
+            @if (impl.Kind == Contracts.Forge.ImplementationKind.WebComponent)
+            {
+                <div class="small muted mt-2">The component is rendered and checked at the <strong>Run &amp; verify</strong> step.</div>
+            }
             @if (impl.Origin == Contracts.Forge.ImplementationOrigin.ReferenceFallback && impl.RejectedModelFiles.Count > 0)
             {
                 <details class="panel panel__pad mt-3">
@@ -119,6 +123,20 @@
 
         case JourneyStepKind.Audit:
             <div class="panel panel__pad muted">The deterministic audit runs here once code has been generated.</div>
+            break;
+
+        case JourneyStepKind.AcceptanceRun when Step.Payload.Ui is { DocumentHtml.Length: > 0 } ui:
+            <div class="stack">
+                <UiPreviewPanel Preview="ui" OnResults="OnUiResults" />
+                <AcceptanceView Outcomes="Step.Payload.Acceptance ?? []" />
+            </div>
+            break;
+
+        case JourneyStepKind.AcceptanceRun when Step.Payload.Ui is not null:
+            <div class="panel panel__pad is-fail" role="alert">
+                <strong>The generated component was blocked by the audit.</strong>
+                <div class="small mt-1">See the deterministic audit step — it will not be rendered.</div>
+            </div>
             break;
 
         case JourneyStepKind.AcceptanceRun:
@@ -232,6 +250,7 @@
     [Parameter] public JourneyStep? Step { get; set; }
     [Parameter] public JourneyDefinition? Definition { get; set; }
     [Parameter] public AppMode Mode { get; set; }
+    [Parameter] public EventCallback<IReadOnlyList<Contracts.Forge.UiCheckResult>> OnUiResults { get; set; }
 
     private string ModeSignInHint => Mode == AppMode.Demo
         ? "Demo Mode entry point — not real authentication."

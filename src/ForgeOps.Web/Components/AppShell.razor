@@ -25,6 +25,15 @@
             </a>
         }
 
+        <div class="nav__section mt-3">Scenario</div>
+        @foreach (var j in ForgeOps.Demo.JourneyCatalog.All)
+        {
+            <a class="nav__link @(j.Key == CurrentJourneyKey ? "active" : null)" href="@($"{ModeRoot}/{j.Key}")">
+                <span class="nav__dot"></span>
+                <span>@j.Name<br /><span class="muted small">@j.Blurb</span></span>
+            </a>
+        }
+
         <div class="nav__section mt-3">Modes</div>
         <a class="nav__link" href="demo">◆ Demo Mode</a>
         <a class="nav__link" href="live">● Live Mode</a>
@@ -45,6 +54,15 @@
     [Parameter] public EventCallback<JourneyStepKind> OnNavigate { get; set; }
 
     private string ModeRoot => Nav.Uri.Contains("/live", StringComparison.OrdinalIgnoreCase) ? "live" : "demo";
+
+    private string CurrentJourneyKey
+    {
+        get
+        {
+            var seg = new Uri(Nav.Uri).Segments.LastOrDefault()?.Trim('/');
+            return ForgeOps.Demo.JourneyCatalog.All.Any(j => j.Key == seg) ? seg! : ForgeOps.Demo.JourneyCatalog.DefaultKey;
+        }
+    }
 
     private readonly (JourneyStepKind Kind, string Label)[] _navItems =
     [

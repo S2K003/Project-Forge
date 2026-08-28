@@ -78,9 +78,10 @@ public sealed class ForgeOpsApiClient
 
     /// <summary>Generate + audit a candidate implementation (no execution).</summary>
     public Task<ForgeCallResult> ForgeGenerateAsync(
-        string requirementText, SpecificationDraft spec, string? projectName, CancellationToken ct = default) =>
+        string requirementText, SpecificationDraft spec, string? projectName,
+        ImplementationKind? kind = null, CancellationToken ct = default) =>
         PostForgeAsync("api/forge/run",
-            new ForgeRequest { RequirementText = requirementText, Specification = spec, ProjectName = projectName, Execute = false }, ct);
+            new ForgeRequest { RequirementText = requirementText, Specification = spec, ProjectName = projectName, Kind = kind, Execute = false }, ct);
 
     /// <summary>Audit + sandbox-run an already-generated implementation (no new AI call).</summary>
     public Task<ForgeCallResult> ForgeExecuteAsync(GeneratedImplementation implementation, CancellationToken ct = default) =>

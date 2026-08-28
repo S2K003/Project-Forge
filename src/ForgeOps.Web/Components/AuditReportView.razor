@@ -9,10 +9,10 @@
             </span>
         </div>
         <div class="grid grid--2 mt-2 small">
-            <div><span class="muted">Compile (Roslyn)</span><br />
+            <div><span class="muted">@(IsWeb ? "Parse (HTML)" : "Compile (Roslyn)")</span><br />
                 @if (Report.Compiled)
                 {
-                    <span class="is-pass">✓ built</span>
+                    <span class="is-pass">✓ @(IsWeb ? "valid document" : "built")</span>
                     @if (Report.RepairAttempts > 0)
                     {
                         <span class="muted"> after @Report.RepairAttempts repair round(s)</span>
@@ -20,10 +20,10 @@
                 }
                 else
                 {
-                    <span class="is-fail">✗ did not compile</span>
+                    <span class="is-fail">✗ @(IsWeb ? "not a valid document" : "did not compile")</span>
                 }
             </div>
-            <div><span class="muted">Banned-API scan</span><br />
+            <div><span class="muted">@(IsWeb ? "Banned-pattern scan" : "Banned-API scan")</span><br />
                 @if (Report.BannedApis.Count == 0)
                 {
                     <span class="is-pass">✓ 0 findings</span>
@@ -87,6 +87,8 @@
 
 @code {
     [Parameter, EditorRequired] public AuditReport Report { get; set; } = default!;
+
+    private bool IsWeb => Report.Kind == ImplementationKind.WebComponent;
 
     private string VerdictLabel => Report.Verdict switch
     {

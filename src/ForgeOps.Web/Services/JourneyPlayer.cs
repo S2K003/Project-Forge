@@ -37,10 +37,13 @@ public sealed class JourneyPlayer
 
     public event Action? Changed;
 
-    public void Load(AppMode mode)
+    public string JourneyKey { get; private set; } = JourneyCatalog.DefaultKey;
+
+    public void Load(AppMode mode, string? journeyKey = null)
     {
         Mode = mode;
-        var definition = CustomerHubJourney.Build();
+        JourneyKey = string.IsNullOrWhiteSpace(journeyKey) ? JourneyCatalog.DefaultKey : journeyKey;
+        var definition = JourneyCatalog.Build(JourneyKey);
         Definition = definition;
 
         _steps = [.. definition.Steps.Select((s, i) => s with
@@ -152,7 +155,7 @@ public sealed class JourneyPlayer
                 return AdvanceResult.ModelError("No approved specification is available.");
             }
 
-            var result = await _api.ForgeGenerateAsync(Definition.RequirementText, spec, Definition.ProjectName);
+            var result = await _api.ForgeGenerateAsync(Definition.RequirementText, spec, Definition.ProjectName, Definition.Kind);
             if (result.IsBridgeOffline)
             {
                 return AdvanceResult.BridgeOffline(result.FailureDetail ?? "AI Bridge is offline.");
@@ -165,27 +168,46 @@ public sealed class JourneyPlayer
 
             var forge = result.Response.Result;
             _liveImplementation = forge.Implementation;
+            var isUi = forge.Implementation.Kind == ForgeOps.Contracts.Forge.ImplementationKind.WebComponent;
 
             _steps[step.Order] = step with
             {
-                Caption = "qwen3:8b wrote this implementation and tests live.",
+                Caption = isUi
+                    ? "qwen3:8b built this web component live."
+                    : "qwen3:8b wrote this implementation and tests live.",
                 Payload = step.Payload with
                 {
                     Implementation = forge.Implementation,
                     AiInteraction = forge.Interaction,
-                    Notes =
-                    [
-                        $"Live generation — {forge.Implementation.RepairAttempts} compile-repair round(s), "
-                        + $"{forge.Implementation.Files.Count} file(s).",
-                        result.Response.RunnerDisabled
-                            ? "The sandbox runner is disabled on this host; the acceptance run will be skipped."
-                            : "The audit and sandbox run follow."
-                    ]
+                    Notes = isUi
+                        ? [$"Live generation — {forge.Implementation.RepairAttempts} audit-repair round(s). The component is rendered at Run & verify."]
+                        :
+                        [
+                            $"Live generation — {forge.Implementation.RepairAttempts} compile-repair round(s), {forge.Implementation.Files.Count} file(s).",
+                            result.Response.RunnerDisabled
+                                ? "The sandbox runner is disabled on this host; the acceptance run will be skipped."
+                                : "The audit and sandbox run follow."
+                        ]
                 }
             };
 
-            // Feed the deterministic audit into the Audit + Quality Gate steps.
             ApplyAudit(forge);
+
+            if (isUi)
+            {
+                // The whole forge result (impl + audit + component) comes from this one call;
+                // the Run step just renders it client-side.
+                var runIndex = _steps.FindIndex(s => s.Kind == JourneyStepKind.AcceptanceRun);
+                if (runIndex >= 0)
+                {
+                    _steps[runIndex] = _steps[runIndex] with
+                    {
+                        Caption = "The generated component, rendered in a locked-down sandboxed iframe.",
+                        Payload = _steps[runIndex].Payload with { Ui = forge.Ui, Acceptance = SpecAcceptance() }
+                    };
+                }
+            }
+
             return AdvanceResult.Ok;
         }
         finally
@@ -200,6 +222,13 @@ public sealed class JourneyPlayer
         if (_liveImplementation is null)
         {
             return AdvanceResult.ModelError("No generated implementation is available to run.");
+        }
+
+        // Web components are rendered client-side — the Run step's payload was already
+        // populated from the generation call.
+        if (_liveImplementation.Kind == ForgeOps.Contracts.Forge.ImplementationKind.WebComponent)
+        {
+            return AdvanceResult.Ok;
         }
 
         IsThinking = true;
@@ -243,6 +272,36 @@ public sealed class JourneyPlayer
         }
     }
 
+    /// <summary>The spec's acceptance criteria as a reviewer checklist (UI acceptance is human-judged, §2.1).</summary>
+    private List<AcceptanceOutcome> SpecAcceptance()
+    {
+        var spec = Definition?.Steps.FirstOrDefault(s => s.Kind == JourneyStepKind.Specification)?.Payload.Specification;
+        return spec is null
+            ? []
+            : spec.AcceptanceCriteria
+                .Select(c => new AcceptanceOutcome { CriterionId = c.Id, Statement = c.Statement, Status = AcceptanceStatus.NotCovered })
+                .ToList();
+    }
+
+    /// <summary>Called from the browser once the sandboxed iframe has rendered and reported its checks.</summary>
+    public void SetUiResults(IReadOnlyList<ForgeOps.Contracts.Forge.UiCheckResult> results)
+    {
+        var runIndex = _steps.FindIndex(s => s.Kind == JourneyStepKind.AcceptanceRun);
+        if (runIndex < 0 || _steps[runIndex].Payload.Ui is not { } ui)
+        {
+            return;
+        }
+
+        _steps[runIndex] = _steps[runIndex] with
+        {
+            Payload = _steps[runIndex].Payload with
+            {
+                Ui = ui with { Rendered = true, Results = results }
+            }
+        };
+        Changed?.Invoke();
+    }
+
     private static string BuildAcceptanceNote(ForgeOps.Contracts.Forge.ForgeResult forge)
     {
         var c = forge.CanonicalTestRun;
@@ -271,16 +330,22 @@ public sealed class JourneyPlayer
         }
 
         var a = forge.Audit;
+        var web = a.Kind == Contracts.Forge.ImplementationKind.WebComponent;
         var gates = new List<QualityGate>
         {
-            SimpleGate("Compile (Roslyn)", a.Compiled ? GateStatus.Passed : GateStatus.Failed,
-                a.Compiled ? [$"built after {a.RepairAttempts} repair round(s)"] : a.Diagnostics.Where(d => d.Severity == Contracts.Forge.DiagnosticSeverity.Error).Select(d => $"{d.Code}: {d.Message}").ToList()),
-            SimpleGate("Banned-API scan", a.BannedApis.Count == 0 ? GateStatus.Passed : GateStatus.Failed,
+            SimpleGate(web ? "Parse" : "Compile (Roslyn)", a.Compiled ? GateStatus.Passed : GateStatus.Failed,
+                a.Compiled ? [web ? "Valid HTML document" : $"built after {a.RepairAttempts} repair round(s)"] : a.Diagnostics.Where(d => d.Severity == Contracts.Forge.DiagnosticSeverity.Error).Select(d => $"{d.Code}: {d.Message}").ToList()),
+            SimpleGate(web ? "Banned-pattern scan" : "Banned-API scan", a.BannedApis.Count == 0 ? GateStatus.Passed : GateStatus.Failed,
                 a.BannedApis.Count == 0 ? ["0 findings"] : a.BannedApis.Select(b => $"{b.File}:{b.Line} {b.Api}").ToList(), blocking: true),
-            SimpleGate("Architecture", a.ArchitecturePassed ? GateStatus.Passed : GateStatus.Failed, a.ArchitectureNotes.ToList()),
-            SimpleGate("AI-authored tests", GateStatus.Pending, []),
-            SimpleGate("Acceptance (canonical)", GateStatus.Pending, [])
+            SimpleGate(web ? "Self-contained" : "Architecture", a.ArchitecturePassed ? GateStatus.Passed : GateStatus.Failed, a.ArchitectureNotes.ToList()),
+            web
+                ? SimpleGate("Behavioural checks", GateStatus.Pending, ["run in the sandboxed iframe at Run & verify"])
+                : SimpleGate("AI-authored tests", GateStatus.Pending, []),
         };
+        if (!web)
+        {
+            gates.Add(SimpleGate("Acceptance (canonical)", GateStatus.Pending, []));
+        }
 
         _steps[gatesIndex] = _steps[gatesIndex] with { Payload = _steps[gatesIndex].Payload with { Gates = gates } };
     }

@@ -22,6 +22,17 @@ public enum GeneratedFileRole
     Test = 1
 }
 
+/// <summary>
+/// What the forge pipeline is producing. A UI requirement generates a self-contained web
+/// component that is rendered in a sandboxed iframe; a logic requirement generates a C#
+/// component that is compiled and executed in the sandbox process.
+/// </summary>
+public enum ImplementationKind
+{
+    CSharpLogic = 0,
+    WebComponent = 1
+}
+
 public enum ImplementationOrigin
 {
     /// <summary>The model's output, compiled as-is.</summary>
@@ -44,6 +55,8 @@ public sealed record GeneratedImplementation
     public string Rationale { get; init; } = string.Empty;
     public IReadOnlyList<GeneratedFile> Files { get; init; } = [];
 
+    public ImplementationKind Kind { get; init; } = ImplementationKind.CSharpLogic;
+
     /// <summary>How many compile-error repair rounds it took to reach a build (0 = first try).</summary>
     public int RepairAttempts { get; init; }
 
@@ -54,6 +67,12 @@ public sealed record GeneratedImplementation
 
     /// <summary>When <see cref="Origin"/> is ReferenceFallback: why the model's output was rejected.</summary>
     public string? RejectionDetail { get; init; }
+
+    /// <summary>WebComponent only: behavioural checks the model proposed for its component.</summary>
+    public IReadOnlyList<UiCheck> UiChecks { get; init; } = [];
+
+    /// <summary>WebComponent only: what a reviewer should look at / try.</summary>
+    public IReadOnlyList<string> ReviewNotes { get; init; } = [];
 }
 
 // --- Deterministic audit ----------------------------------------------------
@@ -98,6 +117,8 @@ public enum AuditVerdict
 /// </summary>
 public sealed record AuditReport
 {
+    public ImplementationKind Kind { get; init; } = ImplementationKind.CSharpLogic;
+
     public required bool Compiled { get; init; }
     public int RepairAttempts { get; init; }
     public IReadOnlyList<CompileDiagnostic> Diagnostics { get; init; } = [];
@@ -181,6 +202,44 @@ public sealed record ScenarioRun
     public bool Faulted { get; init; }
 }
 
+// --- Web component preview ------------------------------------------------
+
+/// <summary>
+/// A behavioural check for a generated web component, authored by the model. The script is
+/// JavaScript evaluated inside the sandboxed iframe after the component loads; it must
+/// return a truthy value (or not throw) to pass. Deterministic verification of the parts
+/// that can be checked; the rest is human visual judgment (ProjectForge.md §15, §2.1).
+/// </summary>
+public sealed record UiCheck
+{
+    public required string Title { get; init; }
+    public required string Script { get; init; }
+}
+
+public sealed record UiCheckResult
+{
+    public required string Title { get; init; }
+    public required bool Passed { get; init; }
+    public string? Detail { get; init; }
+}
+
+/// <summary>Everything the frontend needs to render and self-check a generated web component.</summary>
+public sealed record UiPreview
+{
+    /// <summary>The complete, self-contained HTML document the model produced.</summary>
+    public required string DocumentHtml { get; init; }
+
+    public IReadOnlyList<UiCheck> Checks { get; init; } = [];
+
+    /// <summary>What a reviewer should look at / try, in plain language.</summary>
+    public IReadOnlyList<string> ReviewNotes { get; init; } = [];
+
+    /// <summary>Populated by the browser after it renders the component and runs the checks.</summary>
+    public IReadOnlyList<UiCheckResult> Results { get; init; } = [];
+
+    public bool Rendered { get; init; }
+}
+
 public enum AcceptanceStatus
 {
     Satisfied = 0,
@@ -205,11 +264,15 @@ public sealed record ForgeResult
     public TestRunResult? AiTestRun { get; init; }
     public TestRunResult? CanonicalTestRun { get; init; }
     public ScenarioRun? Scenario { get; init; }
+    public UiPreview? Ui { get; init; }
     public IReadOnlyList<AcceptanceOutcome> Acceptance { get; init; } = [];
     public AiInteractionRecord? Interaction { get; init; }
 
-    public bool RequirementSatisfied =>
-        Audit.Verdict != AuditVerdict.Failed
-        && (CanonicalTestRun?.AllPassed ?? false)
-        && Acceptance.All(a => a.Status == AcceptanceStatus.Satisfied);
+    public bool RequirementSatisfied => Implementation.Kind == ImplementationKind.WebComponent
+        // UI acceptance is human visual judgment (§2.1); the audit gates rendering and the
+        // model's own checks are advisory evidence shown alongside.
+        ? Audit.Verdict != AuditVerdict.Failed && (Ui?.Rendered ?? false)
+        : Audit.Verdict != AuditVerdict.Failed
+          && (CanonicalTestRun?.AllPassed ?? false)
+          && Acceptance.All(a => a.Status == AcceptanceStatus.Satisfied);
 }

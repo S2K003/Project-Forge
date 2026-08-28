@@ -1,0 +1,160 @@
+@using System.Text.Json
+@using ForgeOps.Contracts.Forge
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@* Renders the AI-generated web component live, in a locked-down sandboxed iframe. *@
+
+<div class="stack">
+    <div class="panel panel--focus">
+        <div class="panel__head">
+            <span class="panel__title">Generated component — rendered</span>
+            <span class="chip is-muted">sandbox: allow-scripts · no network · no storage</span>
+        </div>
+        <div class="uipreview">
+            <iframe @ref="_frame" title="Generated component preview"
+                    sandbox="allow-scripts"
+                    referrerpolicy="no-referrer"
+                    class="uipreview__frame"></iframe>
+        </div>
+    </div>
+
+    @if (Preview.Checks.Count > 0)
+    {
+        <div class="panel panel--strong panel__pad">
+            <div class="spread">
+                <div>
+                    <strong>Self-checks</strong>
+                    <span class="muted small"> · model-authored, advisory</span>
+                </div>
+                @if (_ran)
+                {
+                    <span class="badge @(_allPassed ? "is-pass" : "is-warn")">
+                        <span class="badge__dot"></span>@(_results.Count(r => r.Passed)) / @Preview.Checks.Count PASSED
+                    </span>
+                }
+                else
+                {
+                    <span class="chip is-muted">running in the iframe…</span>
+                }
+            </div>
+            @if (_ran && !_allPassed)
+            {
+                <div class="small muted mt-1">A failed self-check may be a real defect or just a check that doesn't match the component — verify the render by eye against the criteria below.</div>
+            }
+            <div class="stack mt-2">
+                @foreach (var check in Preview.Checks)
+                {
+                    var res = _results.FirstOrDefault(r => r.Title == check.Title);
+                    <div class="row" style="gap:8px;align-items:flex-start">
+                        <span class="@(res is null ? "is-muted" : res.Passed ? "is-pass" : "is-fail")" aria-hidden="true">
+                            @(res is null ? "○" : res.Passed ? "✓" : "✗")
+                        </span>
+                        <div style="flex:1">
+                            <span>@check.Title</span>
+                            @if (res is { Passed: false, Detail: { Length: > 0 } d })
+                            {
+                                <div class="mono small is-fail mt-1">@d</div>
+                            }
+                            <div class="mono small muted mt-1">@check.Script</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @if (Preview.ReviewNotes.Count > 0)
+    {
+        <div class="panel panel__pad">
+            <div class="panel__title">For the reviewer to check by eye</div>
+            <ul class="stack mt-2 small muted">@foreach (var n in Preview.ReviewNotes) { <li>@n</li> }</ul>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public UiPreview Preview { get; set; } = default!;
+    [Parameter] public EventCallback<IReadOnlyList<UiCheckResult>> OnResults { get; set; }
+
+    private ElementReference _frame;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<UiPreviewPanel>? _selfRef;
+    private readonly string _nonce = Guid.NewGuid().ToString("n");
+    private List<UiCheckResult> _results = [];
+    private bool _ran;
+    private bool _allPassed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || string.IsNullOrWhiteSpace(Preview.DocumentHtml))
+        {
+            return;
+        }
+
+        _selfRef = DotNetObjectReference.Create(this);
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/forgePreview.js");
+        await _module.InvokeVoidAsync("render", _frame, BuildSrcDoc(), _nonce, _selfRef);
+    }
+
+    [JSInvokable]
+    public async Task OnChecksComplete(UiCheckResult[] results, string? error)
+    {
+        _results = [.. results];
+        _ran = true;
+        _allPassed = _results.Count > 0 && _results.All(r => r.Passed) && error is null;
+        await OnResults.InvokeAsync(_results);
+        StateHasChanged();
+    }
+
+    private string BuildSrcDoc()
+    {
+        var html = Preview.DocumentHtml;
+
+        // Strict CSP: no network of any kind from inside the frame, whatever the markup says.
+        const string csp = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src data:; media-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:;\">";
+
+        var headIdx = html.IndexOf("<head>", StringComparison.OrdinalIgnoreCase);
+        html = headIdx >= 0
+            ? html.Insert(headIdx + 6, csp)
+            : csp + html;
+
+        // Register each check as a real inline <script> (allowed by script-src 'unsafe-inline'),
+        // so the harness never needs eval / 'unsafe-eval'.
+        var sb = new System.Text.StringBuilder();
+        sb.Append("<script>window.__fchecks=[];</script>");
+        foreach (var c in Preview.Checks)
+        {
+            var body = c.Script.Replace("</script", "<\\/script", StringComparison.OrdinalIgnoreCase);
+            var title = JsonSerializer.Serialize(c.Title);
+            sb.Append("<script>window.__fchecks.push({title:").Append(title)
+              .Append(",fn:function(){").Append(body).Append("}});</script>");
+        }
+
+        sb.Append("<script>(function(){var N=").Append(JsonSerializer.Serialize(_nonce)).Append(';')
+          .Append("function P(o){o.__forge=N;parent.postMessage(o,'*');}")
+          .Append("function R(){try{var C=window.__fchecks||[];for(var i=0;i<C.length;i++){var c=C[i],ok=false,d=null;")
+          .Append("try{var v=c.fn();ok=(v===undefined)?true:!!v;}catch(e){ok=false;d=String(e&&e.message||e);}")
+          .Append("P({type:'result',result:{title:c.title,passed:ok,detail:d}});}P({type:'done'});}")
+          .Append("catch(e){P({type:'done',error:String(e)});}}")
+          .Append("if(document.readyState!=='loading')setTimeout(R,80);")
+          .Append("else document.addEventListener('DOMContentLoaded',function(){setTimeout(R,80);});})();</script>");
+
+        var harness = sb.ToString();
+        var bodyClose = html.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
+        return bodyClose >= 0 ? html.Insert(bodyClose, harness) : html + harness;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException) { }
+        _selfRef?.Dispose();
+    }
+}

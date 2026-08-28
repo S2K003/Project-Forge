@@ -27,6 +27,27 @@ Build the pipeline, but keep every one of those principles intact by constructio
 | No arbitrary shell / autonomous action | Generated code is a small library compiled against a **curated reference set** (no `System.IO`, `System.Net`, interop, `System.Runtime.Loader`). It is executed only as `[ForgeFact]` test methods, in a **separate short-lived process** (`ForgeOps.Forge.Sandbox`) with a wall-clock budget and process-tree kill |
 | "AI-generated code is not automatically good software" (§51) | ForgeOps ships its **own** canonical acceptance suite (`GeneratedSources.CanonicalSuite`), authored deterministically from the criteria. A weak implementation passes the model's own tests but fails the canonical AC-2 duplicate-event test — the §31 bug, now genuinely detected by running the code |
 
+## UI requirements — render, don't execute-in-process
+
+A requirement classified as UI (`RequirementClassifier`) produces a **self-contained HTML
+document**, not C#. It is:
+
+1. Audited by `HtmlAuditor` — a banned-pattern scan (external `src`/`href`, `fetch` / XHR /
+   WebSocket / `import()`, `eval` / `new Function`, `window.parent` / `top`, cookies /
+   storage, nested frames, navigation, privileged browser APIs) plus a self-contained
+   structure check. Any hit → the component is not rendered.
+2. Rendered by the frontend in an **`<iframe sandbox="allow-scripts">`** (no
+   `allow-same-origin` → opaque origin, no access to the app, its storage, or cookies) with
+   a strict **`Content-Security-Policy` of `default-src 'none'`** injected into the document
+   — no network of any kind, whatever the markup says.
+3. Self-checked: the model also supplies 2–5 behavioural checks (JS snippets); ForgeOps
+   injects them as inline `<script>` elements (no `eval`), runs them after load, and relays
+   pass/fail to the page via `postMessage`. The rest of acceptance is human visual judgment
+   (§2.1, §15).
+
+The browser is the sandbox here — the strongest isolation available and no server-side
+execution at all, so UI generation + rendering works even on a frontend-only deploy.
+
 ## Sandbox — what it is and is not
 
 **Layers of defence, in order:**

@@ -447,6 +447,25 @@ code, kbd, pre { font-family: var(--font-mono); }
     padding-left: 12px;
 }
 .scenario__output.is-fail { color: var(--accent-danger); border-left-color: rgba(240, 85, 110, 0.5); }
+
+/* Web component preview */
+.uipreview {
+    padding: 14px;
+    background:
+        repeating-conic-gradient(rgba(255,255,255,0.02) 0% 25%, transparent 0% 50%) 0 0 / 18px 18px,
+        var(--bg-void);
+    border-bottom-left-radius: var(--radius-md);
+    border-bottom-right-radius: var(--radius-md);
+}
+.uipreview__frame {
+    display: block;
+    width: 100%;
+    height: 460px;
+    border: 1px solid var(--glass-border-strong);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    box-shadow: var(--shadow-glass);
+}
 @media (max-width: 720px) {
     .scenario__row { grid-template-columns: 1fr; gap: 6px; }
     .scenario__output { border-left: 0; padding-left: 18px; }

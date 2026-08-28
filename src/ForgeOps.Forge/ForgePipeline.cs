@@ -35,6 +35,11 @@ public sealed class ForgePipeline
         bool execute,
         CancellationToken cancellationToken = default)
     {
+        if (implementation.Kind == ImplementationKind.WebComponent)
+        {
+            return BuildWebComponentResult(implementation);
+        }
+
         var audit = _auditor.Audit(implementation.Files, implementation.RepairAttempts);
 
         // Always compute the acceptance map so the UI can show "not covered" up front.
@@ -136,6 +141,30 @@ public sealed class ForgePipeline
             CanonicalTestRun = canonicalRun,
             Scenario = scenario,
             Acceptance = acceptance
+        };
+    }
+
+    private static ForgeResult BuildWebComponentResult(GeneratedImplementation implementation)
+    {
+        var html = implementation.Files.FirstOrDefault(f => f.Role == GeneratedFileRole.Implementation)?.Content ?? string.Empty;
+        var report = GeneratedCodeAuditor.AuditWebComponent(html, implementation.RepairAttempts);
+
+        // Acceptance for a UI component is human-judged against the criteria (§2.1, §15) —
+        // ForgeOps renders it and runs the model's behavioural checks in the sandboxed iframe.
+        var ui = new UiPreview
+        {
+            DocumentHtml = report.Verdict == AuditVerdict.Failed ? string.Empty : html,
+            Checks = report.Verdict == AuditVerdict.Failed ? [] : implementation.UiChecks,
+            ReviewNotes = implementation.ReviewNotes,
+            Rendered = false
+        };
+
+        return new ForgeResult
+        {
+            Implementation = implementation,
+            Audit = report,
+            Ui = ui,
+            Acceptance = []
         };
     }
 

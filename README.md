@@ -42,6 +42,13 @@ requirement by running it. The §31 bug is genuinely detectable — a weak imple
 passes the model's own tests but fails ForgeOps' canonical AC-2 "duplicate payment event"
 test.
 
+**UI requirements too.** A requirement classified as UI (e.g. *"show a customer's loyalty
+status as a compact card"*) generates a self-contained HTML component, which is audited
+(no network / storage / eval / external resources) and then **rendered live in a
+locked-down sandboxed iframe** with the model's behavioural checks running against it. Two
+scenarios ship: `loyalty rules` (backend logic) and `loyalty status card` (UI) — both work
+in Demo and Live.
+
 ---
 
 ## Quick start

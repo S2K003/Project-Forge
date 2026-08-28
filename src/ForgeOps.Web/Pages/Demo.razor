@@ -1,20 +1,25 @@
 @page "/demo"
+@page "/demo/{JourneyKey}"
 @inject AppModeService Mode
 @inject JourneyPlayer Player
 
 <PageTitle>ForgeOps · Demo Mode</PageTitle>
 
-<AppShell ProjectName="CustomerHub" Environment="demo" OnNavigate="GoToKind">
+<AppShell ProjectName="@(Player.Definition?.ProjectName ?? "CustomerHub")" Environment="demo"
+          OnNavigate="GoToKind" ActiveKind="Player.Current?.Kind">
     <JourneyView />
 </AppShell>
 
 @code {
-    protected override void OnInitialized()
+    [Parameter] public string? JourneyKey { get; set; }
+
+    protected override void OnParametersSet()
     {
         Mode.Set(AppMode.Demo);
-        if (Player.Definition is null || Player.Mode != AppMode.Demo)
+        var key = JourneyKey ?? JourneyCatalog.DefaultKey;
+        if (Player.Definition is null || Player.Mode != AppMode.Demo || Player.JourneyKey != key)
         {
-            Player.Load(AppMode.Demo);
+            Player.Load(AppMode.Demo, key);
         }
     }
 

@@ -33,6 +33,118 @@ public sealed class CodeGenerator
         _logger = logger;
     }
 
+    /// <summary>
+    /// Generate a self-contained web component from an approved specification, with one
+    /// audit-repair round. The component is later rendered in a sandboxed iframe.
+    /// </summary>
+    public async Task<CodeGenerationResult> GenerateWebComponentAsync(
+        string requirementText,
+        SpecificationDraft specification,
+        CancellationToken cancellationToken = default)
+    {
+        var criteria = string.Join("\n", specification.AcceptanceCriteria.Select(c => $"- {c.Id}: {c.Statement}"));
+        var context = CodeGenPrompts.BuildContext(requirementText, criteria);
+
+        long latency = 0;
+        string provider = _provider.Name, model = "unknown", raw = string.Empty;
+        WebDraft? draft = null;
+        var lastFindings = string.Empty;
+        var attempts = 0;
+
+        for (; attempts <= 1; attempts++)
+        {
+            var request = new AiRequest
+            {
+                SystemInstructions = CodeGenPrompts.WebComponentSystem,
+                TrustedContext = attempts == 0
+                    ? context
+                    : context + "\n\n" + CodeGenPrompts.BuildWebRepairContext(lastFindings, draft?.Html ?? ""),
+                UntrustedContent = requirementText,
+                PromptVersion = CodeGenPrompts.WebComponentVersion,
+                SchemaName = nameof(WebDraft)
+            };
+
+            var response = await _provider.GenerateAsync<WebDraft>(request, cancellationToken).ConfigureAwait(false);
+            latency += response.LatencyMs;
+            provider = response.Provider;
+            model = response.Model;
+            raw = response.RawText;
+
+            if (response.Value is null || string.IsNullOrWhiteSpace(response.Value.Html))
+            {
+                continue;
+            }
+
+            draft = response.Value;
+            var html = StripFences(draft.Html);
+            var banned = HtmlAuditor.Scan(html);
+            var (structureOk, _) = HtmlAuditor.CheckStructure(html);
+            if (banned.Count == 0 && structureOk)
+            {
+                return BuildWeb(html, draft, attempts, provider, model, raw, latency, valid: true);
+            }
+
+            lastFindings = string.Join("\n",
+                banned.Select(b => $"line {b.Line}: {b.Api} — {b.Reason}").DefaultIfEmpty("structure: not a self-contained document"));
+        }
+
+        var lastHtml = draft is null ? string.Empty : StripFences(draft.Html);
+        return BuildWeb(lastHtml, draft, attempts - 1, provider, model, raw, latency, valid: !string.IsNullOrWhiteSpace(lastHtml));
+    }
+
+    private CodeGenerationResult BuildWeb(
+        string html, WebDraft? draft, int repairAttempts,
+        string provider, string model, string raw, long latencyMs, bool valid)
+    {
+        _telemetry.RecordRequest("generate-web-component", latencyMs, success: valid);
+
+        var implementation = new GeneratedImplementation
+        {
+            Summary = draft?.Summary ?? "No component was produced.",
+            Rationale = draft?.Rationale ?? string.Empty,
+            Kind = ImplementationKind.WebComponent,
+            RepairAttempts = Math.Max(0, repairAttempts),
+            Origin = repairAttempts > 0 ? ImplementationOrigin.ModelWithRepairs : ImplementationOrigin.Model,
+            Files = [new GeneratedFile { Path = "index.html", Language = "html", Content = html }],
+            UiChecks = (draft?.Checks ?? [])
+                .Where(c => !string.IsNullOrWhiteSpace(c.Title) && !string.IsNullOrWhiteSpace(c.Script))
+                .Select(c => new UiCheck { Title = c.Title.Trim(), Script = c.Script.Trim() })
+                .ToList(),
+            ReviewNotes = (draft?.ReviewNotes ?? []).Where(n => !string.IsNullOrWhiteSpace(n)).ToList()
+        };
+
+        var interaction = new AiInteractionRecord
+        {
+            Id = Guid.NewGuid().ToString("n"),
+            Provider = provider,
+            Model = model,
+            ModelVersion = model,
+            PromptVersion = CodeGenPrompts.WebComponentVersion,
+            RequestedAt = DateTimeOffset.UtcNow,
+            LatencyMs = latencyMs,
+            RawResponse = raw,
+            Validation = valid ? AiValidationResult.Ok() : AiValidationResult.Fail("Generated document failed the deterministic audit."),
+            Simulated = false
+        };
+
+        return new CodeGenerationResult(implementation, interaction, valid);
+    }
+
+    private sealed record WebDraft
+    {
+        [JsonPropertyName("summary")] public string Summary { get; init; } = "";
+        [JsonPropertyName("rationale")] public string Rationale { get; init; } = "";
+        [JsonPropertyName("html")] public string Html { get; init; } = "";
+        [JsonPropertyName("checks")] public List<WebCheck> Checks { get; init; } = [];
+        [JsonPropertyName("reviewNotes")] public List<string> ReviewNotes { get; init; } = [];
+    }
+
+    private sealed record WebCheck
+    {
+        [JsonPropertyName("title")] public string Title { get; init; } = "";
+        [JsonPropertyName("script")] public string Script { get; init; } = "";
+    }
+
     public async Task<CodeGenerationResult> GenerateAsync(
         string requirementText,
         SpecificationDraft specification,

@@ -31,6 +31,9 @@ public sealed record ForgeRequest
     public required SpecificationDraft Specification { get; init; }
     public string? ProjectName { get; init; }
 
+    /// <summary>Null → ForgeOps classifies the requirement (logic vs UI). Set to override.</summary>
+    public ImplementationKind? Kind { get; init; }
+
     /// <summary>When false, stop after audit and do not execute anything.</summary>
     public bool Execute { get; init; } = true;
 }

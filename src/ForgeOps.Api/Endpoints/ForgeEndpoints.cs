@@ -30,12 +30,13 @@ public static class ForgeEndpoints
 
             try
             {
-                var generation = await generator.GenerateAsync(
-                    request.RequirementText,
-                    request.Specification,
-                    maxRepairAttempts: 3,
-                    allowReferenceFallback: true,
-                    cancellationToken);
+                var kind = request.Kind
+                    ?? RequirementClassifier.Classify(request.RequirementText, request.Specification.Summary);
+
+                var generation = kind == ImplementationKind.WebComponent
+                    ? await generator.GenerateWebComponentAsync(request.RequirementText, request.Specification, cancellationToken)
+                    : await generator.GenerateAsync(request.RequirementText, request.Specification,
+                        maxRepairAttempts: 3, allowReferenceFallback: true, cancellationToken);
 
                 var forge = await pipeline.RunAsync(generation.Implementation, request.Execute, cancellationToken);
 

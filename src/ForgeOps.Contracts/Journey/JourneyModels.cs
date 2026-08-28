@@ -43,6 +43,9 @@ public sealed record JourneyDefinition
 
     public required string RequirementText { get; init; }
 
+    /// <summary>What this journey's requirement produces — logic or a UI component.</summary>
+    public Forge.ImplementationKind Kind { get; init; } = Forge.ImplementationKind.CSharpLogic;
+
     public required IReadOnlyList<JourneyStep> Steps { get; init; }
 }
 
@@ -97,6 +100,8 @@ public sealed record StepPayload
     public TestRunResult? CanonicalTestRun { get; init; }
 
     public ScenarioRun? Scenario { get; init; }
+
+    public UiPreview? Ui { get; init; }
 
     public IReadOnlyList<AcceptanceOutcome>? Acceptance { get; init; }
 
