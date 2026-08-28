@@ -135,6 +135,7 @@ public static class CustomerHubJourney
                     + "payment-confirmed event is a no-op. Refunds look up the recorded award and post a "
                     + "compensating ledger entry. All state is in-memory; no external dependencies.",
                 RepairAttempts = 1,
+                Origin = ImplementationOrigin.ModelWithRepairs,
                 Files =
                 [
                     new GeneratedFile { Path = "LoyaltyService.cs", Role = GeneratedFileRole.Implementation, Content = ImplSource },

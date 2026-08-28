@@ -37,6 +37,7 @@ public sealed class CodeGenerator
         string requirementText,
         SpecificationDraft specification,
         int maxRepairAttempts,
+        bool allowReferenceFallback = true,
         CancellationToken cancellationToken = default)
     {
         var criteria = string.Join("\n", specification.AcceptanceCriteria.Select(c => $"- {c.Id}: {c.Statement}"));
@@ -77,9 +78,7 @@ public sealed class CodeGenerator
 
             draft = response.Value;
             var files = ToGeneratedFiles(draft);
-
-            var implSources = BuildImplCompileSet(files);
-            var compile = _compiler.Compile("ForgeOps.Generated.ImplCheck", implSources);
+            var compile = _compiler.Compile("ForgeOps.Generated.ImplCheck", BuildImplCompileSet(files));
             if (compile.Success)
             {
                 stopwatch.Stop();
@@ -95,9 +94,88 @@ public sealed class CodeGenerator
 
         stopwatch.Stop();
 
-        // Ran out of attempts. Return the last draft (if any) so the audit step can show why.
         var lastFiles = draft is null ? [] : ToGeneratedFiles(draft);
+
+        if (allowReferenceFallback)
+        {
+            _logger.LogWarning("Code generation did not converge after {Attempts} attempts — using the reference implementation.", attempt);
+            return BuildReferenceFallback(lastFiles, lastErrors, provider, model, rawLast, totalLatency, attempt - 1);
+        }
+
+        // Return the last draft so the audit step can show exactly why it failed.
         return Build(lastFiles, draft, attempt - 1, provider, model, rawLast, totalLatency, compiled: false);
+    }
+
+    private CodeGenerationResult BuildReferenceFallback(
+        IReadOnlyList<GeneratedFile> rejectedFiles,
+        string rejectionDetail,
+        string provider,
+        string model,
+        string raw,
+        long latencyMs,
+        int repairAttempts)
+    {
+        _telemetry.RecordRequest("generate-implementation", latencyMs, success: false);
+
+        // Keep the model's tests only if they compile against the reference implementation.
+        var referenceFiles = new List<GeneratedFile>
+        {
+            new() { Path = "LoyaltyService.cs", Role = GeneratedFileRole.Implementation, Content = GeneratedSources.ReferenceImplementation }
+        };
+
+        var modelTests = rejectedFiles.FirstOrDefault(f => f.Role == GeneratedFileRole.Test);
+        var testFile = new GeneratedFile
+        {
+            Path = "LoyaltyServiceTests.cs",
+            Role = GeneratedFileRole.Test,
+            Content = GeneratedSources.ReferenceTests
+        };
+
+        if (modelTests is not null)
+        {
+            var withModelTests = _compiler.Compile("ForgeOps.Generated.FallbackCheck", new Dictionary<string, string>
+            {
+                ["__Contract.cs"] = GeneratedSources.Contract,
+                ["__ForgeTestKit.cs"] = GeneratedSources.TestKit,
+                ["LoyaltyService.cs"] = GeneratedSources.ReferenceImplementation,
+                [modelTests.Path] = modelTests.Content
+            });
+            if (withModelTests.Success)
+            {
+                testFile = modelTests with { Path = "LoyaltyServiceTests.cs" };
+            }
+        }
+
+        referenceFiles.Add(testFile);
+
+        var implementation = new GeneratedImplementation
+        {
+            Summary = "ForgeOps reference implementation (the model's output did not compile).",
+            Rationale = "Idempotency is keyed by order id; refunds reverse the recorded award and post a compensating ledger entry.",
+            Files = referenceFiles,
+            RepairAttempts = Math.Max(0, repairAttempts),
+            Origin = ImplementationOrigin.ReferenceFallback,
+            RejectedModelFiles = rejectedFiles,
+            RejectionDetail = string.IsNullOrWhiteSpace(rejectionDetail)
+                ? "The model did not return usable files."
+                : rejectionDetail
+        };
+
+        var interaction = new AiInteractionRecord
+        {
+            Id = Guid.NewGuid().ToString("n"),
+            Provider = provider,
+            Model = model,
+            ModelVersion = model,
+            PromptVersion = CodeGenPrompts.Version,
+            RequestedAt = DateTimeOffset.UtcNow,
+            LatencyMs = latencyMs,
+            RawResponse = raw,
+            Validation = AiValidationResult.Fail("Model output did not compile; ForgeOps substituted its reference implementation."),
+            Simulated = false
+        };
+
+        return new CodeGenerationResult(implementation, interaction, Compiled: true);
     }
 
     private CodeGenerationResult Build(
@@ -117,7 +195,8 @@ public sealed class CodeGenerator
             Summary = draft?.Summary ?? "No implementation was produced.",
             Rationale = draft?.Rationale ?? string.Empty,
             Files = files,
-            RepairAttempts = Math.Max(0, repairAttempts)
+            RepairAttempts = Math.Max(0, repairAttempts),
+            Origin = repairAttempts > 0 ? ImplementationOrigin.ModelWithRepairs : ImplementationOrigin.Model
         };
 
         var interaction = new AiInteractionRecord

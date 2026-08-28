@@ -67,8 +67,21 @@
             break;
 
         case JourneyStepKind.Implementation when Step.Payload.Implementation is { } impl:
+            @if (impl.Origin == Contracts.Forge.ImplementationOrigin.ReferenceFallback)
+            {
+                <div class="panel panel__pad is-warn" role="alert">
+                    <strong>⚠ The model's output did not compile within the repair budget.</strong>
+                    <div class="small mt-1">ForgeOps substituted its reference implementation so the walkthrough can finish. The model's last attempt is shown below.</div>
+                    <div class="mono small muted mt-1">@impl.RejectionDetail</div>
+                </div>
+            }
             <div class="panel panel--strong panel__pad">
-                <div class="panel__title">What the model produced</div>
+                <div class="spread">
+                    <span class="panel__title">Implementation</span>
+                    <span class="chip @(impl.Origin == Contracts.Forge.ImplementationOrigin.ReferenceFallback ? "is-warn" : "is-pass")">
+                        @OriginLabel(impl.Origin)
+                    </span>
+                </div>
                 <p class="mt-2">@impl.Summary</p>
                 @if (!string.IsNullOrWhiteSpace(impl.Rationale))
                 {
@@ -85,6 +98,18 @@
                     <CodeBlock Path="@file.Path" Role="@file.Role.ToString().ToLowerInvariant()" Content="@file.Content" />
                 }
             </div>
+            @if (impl.Origin == Contracts.Forge.ImplementationOrigin.ReferenceFallback && impl.RejectedModelFiles.Count > 0)
+            {
+                <details class="panel panel__pad mt-3">
+                    <summary class="muted small">Show the model's rejected attempt (@impl.RejectedModelFiles.Count file(s))</summary>
+                    <div class="stack mt-2">
+                        @foreach (var file in impl.RejectedModelFiles)
+                        {
+                            <CodeBlock Path="@file.Path" Role="rejected" Content="@file.Content" />
+                        }
+                    </div>
+                </details>
+            }
             <AiInteractionCard Interaction="Step.Payload.AiInteraction" />
             break;
 
@@ -212,6 +237,13 @@
         : "Live Mode: this is real authentication with role-based access in the full product.";
 
     private static bool Sim(AiInteractionRecord? r) => r?.Simulated ?? false;
+
+    private static string OriginLabel(Contracts.Forge.ImplementationOrigin o) => o switch
+    {
+        Contracts.Forge.ImplementationOrigin.Model => "model — first try",
+        Contracts.Forge.ImplementationOrigin.ModelWithRepairs => "model — after repair",
+        _ => "reference fallback"
+    };
 
     private static string ReasonClass(ReasonKind k) => k switch
     {

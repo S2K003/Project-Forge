@@ -34,6 +34,7 @@ public static class ForgeEndpoints
                     request.RequirementText,
                     request.Specification,
                     maxRepairAttempts: 3,
+                    allowReferenceFallback: true,
                     cancellationToken);
 
                 var forge = await pipeline.RunAsync(generation.Implementation, request.Execute, cancellationToken);

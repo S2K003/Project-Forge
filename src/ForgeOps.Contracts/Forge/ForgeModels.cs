@@ -22,6 +22,22 @@ public enum GeneratedFileRole
     Test = 1
 }
 
+public enum ImplementationOrigin
+{
+    /// <summary>The model's output, compiled as-is.</summary>
+    Model = 0,
+
+    /// <summary>The model's output after one or more compile-error repair rounds.</summary>
+    ModelWithRepairs = 1,
+
+    /// <summary>
+    /// The model's output did not compile within the repair budget; ForgeOps substituted
+    /// its reference implementation so the walkthrough can complete. Clearly labelled as
+    /// such in the UI — the model's last attempt and its errors are still shown.
+    /// </summary>
+    ReferenceFallback = 2
+}
+
 public sealed record GeneratedImplementation
 {
     public required string Summary { get; init; }
@@ -30,6 +46,14 @@ public sealed record GeneratedImplementation
 
     /// <summary>How many compile-error repair rounds it took to reach a build (0 = first try).</summary>
     public int RepairAttempts { get; init; }
+
+    public ImplementationOrigin Origin { get; init; } = ImplementationOrigin.Model;
+
+    /// <summary>When <see cref="Origin"/> is ReferenceFallback: the model's last non-compiling files.</summary>
+    public IReadOnlyList<GeneratedFile> RejectedModelFiles { get; init; } = [];
+
+    /// <summary>When <see cref="Origin"/> is ReferenceFallback: why the model's output was rejected.</summary>
+    public string? RejectionDetail { get; init; }
 }
 
 // --- Deterministic audit ----------------------------------------------------

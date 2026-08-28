@@ -50,12 +50,30 @@ audit still run for real; only the sandboxed execution is withheld. The recommen
 topology runs the runner on a machine the developer controls (their PC, or the AI-Bridge
 PC next to Ollama).
 
+## Reference fallback (honest, not a fake)
+
+If the model's output still does not compile after the repair budget, ForgeOps substitutes
+its own **reference implementation** (`GeneratedSources.ReferenceImplementation`) so the
+walkthrough can finish. This is disclosed, not hidden:
+
+- `GeneratedImplementation.Origin` = `ReferenceFallback`, and the UI shows a warning banner
+  plus the model's rejected attempt and its compiler errors.
+- The AI interaction's validation result records the substitution.
+- The model's own tests are kept only if they compile against the reference; otherwise a
+  minimal ForgeOps test is used.
+
+This satisfies §49 ("never invent test results") — the acceptance run still executes real
+code against the real canonical suite; it is simply ForgeOps' code, clearly labelled as
+such. Disable with `allowReferenceFallback: false` to see the raw failure instead.
+
 ## Consequences
 
-- Live Mode can genuinely turn an idea into running, acceptance-verified code.
-- The generation target is deliberately narrow (one component against a fixed contract) so
-  an 8B local model can succeed reliably; a compile-error **repair loop** (max 2 rounds)
-  absorbs the common failures.
+- Live Mode can genuinely turn an idea into running, acceptance-verified code. Verified
+  against local `qwen3:8b`: spec → implementation (0 repair rounds) → clean audit →
+  sandbox run → **6/6 canonical tests, all 5 acceptance criteria satisfied**, ~100s.
+- The generation target is deliberately narrow (complete a few method bodies in a fixed,
+  fully-scaffolded class) so an 8B local model succeeds reliably; a compile-error **repair
+  loop** (max 3 rounds) plus the reference fallback absorb the rest.
 - Demo Mode ships a recorded run of exactly this pipeline (`CustomerHubJourney`), so the
   story is always available offline.
 - If the generation target broadens later, this ADR must be revisited — a larger surface

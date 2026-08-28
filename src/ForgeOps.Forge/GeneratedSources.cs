@@ -166,6 +166,89 @@ public static class GeneratedSources
         }
         """;
 
+    /// <summary>
+    /// ForgeOps' known-good implementation of the contract. Used only as a labelled
+    /// fallback when the model's output does not compile within the repair budget
+    /// (ProjectForge.md §49 — never invent results; the substitution is disclosed).
+    /// </summary>
+    public const string ReferenceImplementation =
+        """
+        namespace CustomerHub.Loyalty;
+
+        using System;
+        using System.Collections.Generic;
+
+        public sealed class LoyaltyService : ILoyaltyService
+        {
+            private const decimal MinimumQualifyingValue = 1.00m;
+            private readonly Dictionary<string, (string CustomerId, int Points)> _awarded = new();
+            private readonly Dictionary<string, int> _balances = new();
+            private readonly List<LedgerEntry> _ledger = new();
+
+            public IReadOnlyList<LedgerEntry> Ledger => _ledger;
+
+            public void OnPaymentConfirmed(Order order)
+            {
+                if (!order.IsPaid || order.NetTotal < MinimumQualifyingValue)
+                    return;
+                if (_awarded.ContainsKey(order.OrderId))
+                    return;
+
+                var points = (int)Math.Floor(order.NetTotal);
+                _awarded[order.OrderId] = (order.CustomerId, points);
+                AddPoints(order.CustomerId, points);
+                _ledger.Add(new LedgerEntry(order.OrderId, order.CustomerId, points, "purchase", DateTimeOffset.UtcNow));
+            }
+
+            public void OnOrderRefunded(string orderId)
+            {
+                if (!_awarded.TryGetValue(orderId, out var award))
+                    return;
+
+                _awarded.Remove(orderId);
+                AddPoints(award.CustomerId, -award.Points);
+                _ledger.Add(new LedgerEntry(orderId, award.CustomerId, -award.Points, "refund", DateTimeOffset.UtcNow));
+            }
+
+            public int BalanceFor(string customerId) =>
+                _balances.TryGetValue(customerId, out var balance) ? balance : 0;
+
+            private void AddPoints(string customerId, int delta) =>
+                _balances[customerId] = BalanceFor(customerId) + delta;
+        }
+        """;
+
+    /// <summary>Minimal tests paired with <see cref="ReferenceImplementation"/> for the fallback path.</summary>
+    public const string ReferenceTests =
+        """
+        namespace CustomerHub.Loyalty.Tests;
+
+        using System.Linq;
+        using CustomerHub.Loyalty;
+        using ForgeOps.Generated;
+
+        public static class LoyaltyServiceTests
+        {
+            [ForgeFact]
+            public static void Awards_and_reverses()
+            {
+                var svc = new LoyaltyService();
+                svc.OnPaymentConfirmed(new Order("o1", "c1", 30.75m, true));
+                Check.Equal(30, svc.BalanceFor("c1"));
+                svc.OnOrderRefunded("o1");
+                Check.Equal(0, svc.BalanceFor("c1"));
+            }
+
+            [ForgeFact]
+            public static void Ledger_records_the_award()
+            {
+                var svc = new LoyaltyService();
+                svc.OnPaymentConfirmed(new Order("o1", "c1", 30.75m, true));
+                Check.NotNull(svc.Ledger.FirstOrDefault(e => e.OrderId == "o1"));
+            }
+        }
+        """;
+
     /// <summary>Criterion id → statement, for mapping run results back to the spec (§15).</summary>
     public static readonly IReadOnlyDictionary<string, string> CriteriaStatements = new Dictionary<string, string>
     {
