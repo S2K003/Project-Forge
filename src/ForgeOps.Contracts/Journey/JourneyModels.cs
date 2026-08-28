@@ -96,6 +96,8 @@ public sealed record StepPayload
 
     public TestRunResult? CanonicalTestRun { get; init; }
 
+    public ScenarioRun? Scenario { get; init; }
+
     public IReadOnlyList<AcceptanceOutcome>? Acceptance { get; init; }
 
     public IReadOnlyList<string>? Notes { get; init; }

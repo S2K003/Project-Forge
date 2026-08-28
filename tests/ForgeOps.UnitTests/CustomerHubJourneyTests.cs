@@ -51,6 +51,16 @@ public sealed class CustomerHubJourneyTests
     }
 
     [Fact]
+    public void The_run_step_shows_a_concrete_execution_walkthrough()
+    {
+        var scenario = Journey.Steps.Single(s => s.Kind == JourneyStepKind.AcceptanceRun).Payload.Scenario;
+        Assert.NotNull(scenario);
+        Assert.True(scenario!.Executed);
+        Assert.NotEmpty(scenario.Steps);
+        Assert.All(scenario.Steps, s => Assert.False(string.IsNullOrWhiteSpace(s.Output)));
+    }
+
+    [Fact]
     public void Every_recorded_ai_interaction_is_flagged_simulated()
     {
         var interactions = Journey.Steps

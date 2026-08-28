@@ -123,6 +123,7 @@
 
         case JourneyStepKind.AcceptanceRun:
             <div class="stack">
+                <ScenarioView Run="Step.Payload.Scenario" />
                 <AcceptanceView Outcomes="Step.Payload.Acceptance ?? []" />
                 <TestRunView Title="ForgeOps canonical acceptance suite" Run="Step.Payload.CanonicalTestRun" />
                 <TestRunView Title="Model's own tests" Run="Step.Payload.AiTestRun" />

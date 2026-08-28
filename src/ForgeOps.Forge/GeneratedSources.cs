@@ -52,6 +52,17 @@ public static class GeneratedSources
             public string Id { get; }
         }
 
+        [AttributeUsage(AttributeTargets.Method)]
+        public sealed class ForgeScenarioAttribute : Attribute { }
+
+        /// Collects the action → output pairs of a scripted walkthrough for display.
+        public static class Scenario
+        {
+            public static readonly List<string[]> Steps = new();
+
+            public static void Step(string action, string output) => Steps.Add(new[] { action, output ?? "" });
+        }
+
         public sealed class ForgeAssertException : Exception
         {
             public ForgeAssertException(string message) : base(message) { }
@@ -245,6 +256,61 @@ public static class GeneratedSources
                 var svc = new LoyaltyService();
                 svc.OnPaymentConfirmed(new Order("o1", "c1", 30.75m, true));
                 Check.NotNull(svc.Ledger.FirstOrDefault(e => e.OrderId == "o1"));
+            }
+        }
+        """;
+
+    /// <summary>
+    /// A scripted walkthrough that ForgeOps runs against the generated <c>LoyaltyService</c>
+    /// to show it working with concrete inputs and outputs (the "visual output" surface).
+    /// Authored by ForgeOps, executed in the sandbox against the model's own code.
+    /// </summary>
+    public const string ScenarioSuite =
+        """
+        namespace CustomerHub.Loyalty.Walkthrough;
+
+        using System;
+        using System.Linq;
+        using CustomerHub.Loyalty;
+        using ForgeOps.Generated;
+
+        public static class LoyaltyWalkthrough
+        {
+            [ForgeScenario]
+            public static void Run()
+            {
+                var svc = new LoyaltyService();
+
+                var order = new Order("ORD-1001", "alice", 42.90m, true);
+                svc.OnPaymentConfirmed(order);
+                Scenario.Step(
+                    "OnPaymentConfirmed( ORD-1001 · alice · $42.90 · paid )",
+                    $"alice balance = {svc.BalanceFor("alice")} points");
+
+                svc.OnPaymentConfirmed(order);
+                Scenario.Step(
+                    "OnPaymentConfirmed( ORD-1001 ) again  — duplicate webhook delivery",
+                    $"alice balance = {svc.BalanceFor("alice")} points  (unchanged — idempotent)");
+
+                svc.OnPaymentConfirmed(new Order("ORD-1002", "bob", 0.80m, true));
+                Scenario.Step(
+                    "OnPaymentConfirmed( ORD-1002 · bob · $0.80 · paid )  — below the $1.00 minimum",
+                    $"bob balance = {svc.BalanceFor("bob")} points");
+
+                svc.OnPaymentConfirmed(new Order("ORD-1003", "carol", 120.00m, false));
+                Scenario.Step(
+                    "OnPaymentConfirmed( ORD-1003 · carol · $120.00 · NOT paid )",
+                    $"carol balance = {svc.BalanceFor("carol")} points");
+
+                svc.OnOrderRefunded("ORD-1001");
+                Scenario.Step(
+                    "OnOrderRefunded( ORD-1001 )  — alice's order is fully refunded",
+                    $"alice balance = {svc.BalanceFor("alice")} points");
+
+                var ledger = string.Join(
+                    "\n",
+                    svc.Ledger.Select(e => $"  {e.OrderId,-10} {e.CustomerId,-6} {(e.Points >= 0 ? "+" : "")}{e.Points,-4} {e.Reason}"));
+                Scenario.Step("Final loyalty ledger", ledger.Length == 0 ? "(empty)" : "\n" + ledger);
             }
         }
         """;

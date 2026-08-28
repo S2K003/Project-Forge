@@ -64,6 +64,27 @@ public sealed class ForgePipelineTests
     }
 
     [Fact]
+    public async Task Scenario_walkthrough_executes_the_generated_code_and_reports_real_output()
+    {
+        var pipeline = BuildPipeline();
+        if (!pipeline.RunnerAvailable)
+        {
+            return;
+        }
+
+        var result = await pipeline.RunAsync(RecordedImplementation(), execute: true, CancellationToken.None);
+
+        Assert.NotNull(result.Scenario);
+        Assert.True(result.Scenario!.Executed, result.Scenario.Detail);
+        Assert.False(result.Scenario.Faulted);
+
+        // The recorded reference impl awards floor($42.90) = 42, stays idempotent, and reverses on refund.
+        Assert.Contains(result.Scenario.Steps, s => s.Output.Contains("alice balance = 42 points"));
+        Assert.Contains(result.Scenario.Steps, s => s.Output.Contains("unchanged"));
+        Assert.Contains(result.Scenario.Steps, s => s.Action.StartsWith("OnOrderRefunded") && s.Output.Contains("alice balance = 0"));
+    }
+
+    [Fact]
     public async Task A_non_idempotent_implementation_fails_the_canonical_duplicate_event_test()
     {
         var pipeline = BuildPipeline();

@@ -155,6 +155,32 @@ public sealed record TestRunResult
     public bool AllPassed => Executed && Failed == 0 && !TimedOut && Passed > 0;
 }
 
+/// <summary>
+/// One step of a scripted walkthrough executed against the generated implementation: an
+/// action performed and the concrete result it produced. This is the "show me it running"
+/// surface — real output from the AI's own code, not a pass/fail count.
+/// </summary>
+public sealed record ScenarioStep
+{
+    public required string Action { get; init; }
+    public required string Output { get; init; }
+
+    /// <summary>Set when the generated code threw while performing this step.</summary>
+    public string? Error { get; init; }
+}
+
+public sealed record ScenarioRun
+{
+    public required bool Executed { get; init; }
+    public IReadOnlyList<ScenarioStep> Steps { get; init; } = [];
+
+    /// <summary>Anything the generated code wrote to the console during the walkthrough.</summary>
+    public string Stdout { get; init; } = string.Empty;
+
+    public string Detail { get; init; } = string.Empty;
+    public bool Faulted { get; init; }
+}
+
 public enum AcceptanceStatus
 {
     Satisfied = 0,
@@ -178,6 +204,7 @@ public sealed record ForgeResult
     public required AuditReport Audit { get; init; }
     public TestRunResult? AiTestRun { get; init; }
     public TestRunResult? CanonicalTestRun { get; init; }
+    public ScenarioRun? Scenario { get; init; }
     public IReadOnlyList<AcceptanceOutcome> Acceptance { get; init; } = [];
     public AiInteractionRecord? Interaction { get; init; }
 

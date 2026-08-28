@@ -225,6 +225,7 @@ public sealed class JourneyPlayer
                 {
                     AiTestRun = forge.AiTestRun,
                     CanonicalTestRun = forge.CanonicalTestRun,
+                    Scenario = forge.Scenario,
                     Acceptance = forge.Acceptance,
                     Notes = result.Response.RunnerDisabled
                         ? ["Set CodeRunner:Enabled=true on a machine you control to execute the generated code."]

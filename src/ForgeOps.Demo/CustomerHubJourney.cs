@@ -329,6 +329,21 @@ public static class CustomerHubJourney
                     Pass("LoyaltyAcceptance.Unpaid_order_awards_nothing", "AC-1")
                 ]
             },
+            Scenario = new ScenarioRun
+            {
+                Executed = true,
+                Detail = "6 step(s) in 12 ms (sandboxed)",
+                Steps =
+                [
+                    Step("OnPaymentConfirmed( ORD-1001 · alice · $42.90 · paid )", "alice balance = 42 points"),
+                    Step("OnPaymentConfirmed( ORD-1001 ) again  — duplicate webhook delivery", "alice balance = 42 points  (unchanged — idempotent)"),
+                    Step("OnPaymentConfirmed( ORD-1002 · bob · $0.80 · paid )  — below the $1.00 minimum", "bob balance = 0 points"),
+                    Step("OnPaymentConfirmed( ORD-1003 · carol · $120.00 · NOT paid )", "carol balance = 0 points"),
+                    Step("OnOrderRefunded( ORD-1001 )  — alice's order is fully refunded", "alice balance = 0 points"),
+                    Step("Final loyalty ledger",
+                        "\n  ORD-1001   alice  +42   purchase\n  ORD-1001   alice  -42   refund")
+                ]
+            },
             Acceptance =
             [
                 Acc("AC-1", "A paid order credits floor(net total) points to the customer.", AcceptanceStatus.Satisfied,
@@ -585,6 +600,8 @@ public static class CustomerHubJourney
         DurationMs = 3,
         Criteria = criteria
     };
+
+    private static ScenarioStep Step(string action, string output) => new() { Action = action, Output = output };
 
     private static AcceptanceOutcome Acc(string id, string statement, AcceptanceStatus status, params string[] tests) => new()
     {

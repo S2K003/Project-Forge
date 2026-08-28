@@ -1,0 +1,45 @@
+@using ForgeOps.Contracts.Forge
+
+@* The AI's generated code, actually running — concrete inputs → concrete outputs. *@
+
+<div class="panel panel--focus">
+    <div class="panel__head">
+        <span class="panel__title">Generated code — executed</span>
+        @if (Run is { Executed: true })
+        {
+            <span class="chip @(Run.Faulted ? "is-fail" : "is-pass")">@Run.Detail</span>
+        }
+    </div>
+    <div class="panel__pad">
+        @if (Run is null || !Run.Executed)
+        {
+            <div class="muted small">@(Run?.Detail ?? "The walkthrough runs here once code has been generated.")</div>
+        }
+        else
+        {
+            <div class="scenario">
+                @foreach (var step in Run.Steps)
+                {
+                    <div class="scenario__row">
+                        <div class="scenario__action mono">
+                            <span class="scenario__caret" aria-hidden="true">›</span> @step.Action
+                        </div>
+                        <div class="scenario__output mono @(step.Error is not null ? "is-fail" : null)">@Render(step)</div>
+                    </div>
+                }
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(Run.Stdout))
+            {
+                <div class="panel__title mt-3">Console output</div>
+                <pre class="codeblock__body mt-1" style="max-height:180px">@Run.Stdout</pre>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public ScenarioRun? Run { get; set; }
+
+    private static string Render(ScenarioStep step) => step.Error ?? step.Output;
+}

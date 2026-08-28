@@ -87,6 +87,25 @@ public sealed class ForgePipeline
                 };
         }
 
+        // --- scripted walkthrough: run the model's code with concrete inputs, show outputs ---
+        ScenarioRun? scenario = null;
+        var scenarioSources = Merge(common, implFiles,
+            new Dictionary<string, string> { ["__Walkthrough.cs"] = GeneratedSources.ScenarioSuite });
+        var scenarioCompile = _compiler.Compile("ForgeOps.Generated.Walkthrough", scenarioSources);
+        if (scenarioCompile.Success && scenarioCompile.AssemblyImage is not null)
+        {
+            scenario = await _runner.RunScenarioAsync(scenarioCompile.AssemblyImage, cancellationToken);
+        }
+        else
+        {
+            scenario = new ScenarioRun
+            {
+                Executed = false,
+                Detail = "Walkthrough did not compile against the implementation: "
+                    + string.Join("; ", scenarioCompile.Errors.Select(e => $"{e.Code} {e.Message}").Take(3))
+            };
+        }
+
         // --- ForgeOps' canonical acceptance suite ---
         var canonicalSources = Merge(common, implFiles,
             new Dictionary<string, string> { ["__Canonical.cs"] = GeneratedSources.CanonicalSuite });
@@ -115,6 +134,7 @@ public sealed class ForgePipeline
             Audit = audit.Report,
             AiTestRun = aiRun,
             CanonicalTestRun = canonicalRun,
+            Scenario = scenario,
             Acceptance = acceptance
         };
     }
