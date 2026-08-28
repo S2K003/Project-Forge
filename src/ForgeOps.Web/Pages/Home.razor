@@ -22,8 +22,9 @@
             <div class="panel modecard" @onclick='() => Enter(AppMode.Demo)'>
                 <h3 class="is-ai">◆ Demo Mode</h3>
                 <p>
-                    The complete CustomerHub walkthrough with seeded data. No backend, no AI Bridge,
-                    no network — works anywhere, every time. AI steps replay clearly-labelled recordings.
+                    Watch a UI requirement become a rendered component: spec → generated HTML →
+                    deterministic audit → <strong>rendered live in a sandboxed iframe</strong> → checks.
+                    Seeded recordings, no backend, no network — works anywhere, every time.
                 </p>
                 <div class="chip is-ai mt-2">Always available</div>
             </div>
@@ -32,15 +33,15 @@
                  @onclick="EnterLive" style="@(Options.HasApi ? null : "opacity:.5;cursor:not-allowed")">
                 <h3 class="is-info">● Live Mode</h3>
                 <p>
-                    The real product: real API, real database, a real call to <code>qwen3:8b</code> through
-                    the AI Bridge. Requires a verified bridge connection — losing it locks the app.
+                    The real thing: <code>qwen3:8b</code> builds the component through the AI Bridge,
+                    ForgeOps audits and renders it. Requires a verified bridge connection — losing it locks the app.
                 </p>
                 <div class="chip mt-2">@(Options.HasApi ? "Requires AI Bridge" : "No API configured for this deploy")</div>
             </div>
         </div>
 
         <p class="small muted mt-4">
-            Same journey, same components in both modes — only the data source and the mode badge differ.
+            Two scenarios inside — a UI component and a backend rule. Same journey, same components in both modes.
         </p>
     </div>
 </div>

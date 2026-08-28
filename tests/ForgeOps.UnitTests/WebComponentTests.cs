@@ -91,9 +91,13 @@ public sealed class LoyaltyCardJourneyTests
     }
 
     [Fact]
-    public void Catalog_exposes_both_journeys()
+    public void Catalog_exposes_both_journeys_and_defaults_to_the_ui_walkthrough()
     {
         Assert.Contains(JourneyCatalog.All, j => j.Key == "customerhub" && j.Kind == ImplementationKind.CSharpLogic);
         Assert.Contains(JourneyCatalog.All, j => j.Key == "loyalty-card" && j.Kind == ImplementationKind.WebComponent);
+
+        Assert.Equal("loyalty-card", JourneyCatalog.DefaultKey);
+        Assert.Equal(ImplementationKind.WebComponent, JourneyCatalog.Build(null).Kind);
+        Assert.Equal(ImplementationKind.CSharpLogic, JourneyCatalog.Build("customerhub").Kind);
     }
 }

@@ -8,17 +8,18 @@ public static class JourneyCatalog
 {
     public static readonly IReadOnlyList<JourneyOption> All =
     [
+        new("loyalty-card", "Loyalty status card", "UI — generated HTML, audited, rendered live", ImplementationKind.WebComponent),
         new("customerhub", "Loyalty rules", "Backend logic — generated C#, compiled, executed", ImplementationKind.CSharpLogic),
-        new("loyalty-card", "Loyalty status card", "UI — generated HTML, audited, rendered", ImplementationKind.WebComponent),
     ];
 
     public static JourneyDefinition Build(string? key) => key switch
     {
-        LoyaltyCardJourney.ProjectKey => LoyaltyCardJourney.Build(),
-        _ => CustomerHubJourney.Build()
+        CustomerHubJourney.ProjectKey => CustomerHubJourney.Build(),
+        _ => LoyaltyCardJourney.Build()
     };
 
-    public static string DefaultKey => "customerhub";
+    /// <summary>The UI development walkthrough is what Demo/Live Mode opens on by default.</summary>
+    public static string DefaultKey => "loyalty-card";
 }
 
 public sealed record JourneyOption(string Key, string Name, string Blurb, ImplementationKind Kind);

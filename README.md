@@ -25,29 +25,34 @@ AI Recommendation  →  Deterministic Evidence  →  Human Judgment  →  Engine
 
 Same journey, same components, same UI — only the data source and the mode badge differ.
 
-## The journey (CustomerHub)
+## The journey
+
+Two scenarios ship, switchable in the nav; Demo/Live Mode **opens on the UI one**.
+
+### Loyalty status card — a UI requirement *(default)*
+
+> *"Show a customer's loyalty status as a compact card: points balance, tier, and the last three activity entries."*
+
+Sign in → requirement → **AI specification** → human review → **AI implementation**
+(`qwen3:8b` writes a self-contained HTML component) → **deterministic audit**
+(`HtmlAuditor` — no network / storage / `eval` / external resources; a hit blocks
+rendering) → quality gates → **AI review** → **human decision** → **run & verify**
+(**the component is rendered live in a locked-down sandboxed iframe**, and the model's
+behavioural self-checks run against it) → merge → telemetry → **engineering health**.
+
+### Loyalty rules — a backend requirement
 
 > *"Customers should receive loyalty points after successful purchases."*
 
-Sign in → create requirement → **AI specification** → human review → **AI implementation**
-(the model writes `LoyaltyService` + tests, with a compile-error repair loop) →
-**deterministic audit** (Roslyn compile, analyzers, banned-API scan, architecture) →
-quality gates → **AI review** → **human decision** (approve execution) → **run & verify**
-(the sandbox executes ForgeOps' own acceptance suite against the generated code and maps
-every result back to an acceptance criterion) → merge → telemetry → **engineering
-health** with a full "Why?".
+… → **AI implementation** (`LoyaltyService` + tests, compile-error repair loop) →
+**deterministic audit** (Roslyn compile, analyzers, banned-API scan) → … → **run & verify**
+(the sandbox **executes** ForgeOps' own acceptance suite against the generated code and
+maps every result to an acceptance criterion) → merge → …
 
 The payoff is real: ForgeOps generates working code and *proves* it satisfies the
-requirement by running it. The §31 bug is genuinely detectable — a weak implementation
-passes the model's own tests but fails ForgeOps' canonical AC-2 "duplicate payment event"
-test.
-
-**UI requirements too.** A requirement classified as UI (e.g. *"show a customer's loyalty
-status as a compact card"*) generates a self-contained HTML component, which is audited
-(no network / storage / eval / external resources) and then **rendered live in a
-locked-down sandboxed iframe** with the model's behavioural checks running against it. Two
-scenarios ship: `loyalty rules` (backend logic) and `loyalty status card` (UI) — both work
-in Demo and Live.
+requirement — by rendering it, or by running it. The §31 bug is genuinely detectable — a
+weak logic implementation passes the model's own tests but fails ForgeOps' canonical AC-2
+"duplicate payment event" test.
 
 ---
 
@@ -78,7 +83,7 @@ ForgeOps.Api            ASP.NET Core minimal API     ── deployed to a free-t
 ForgeOps.AI             AI Gateway · IAiProvider · OllamaBridgeProvider · CodeGenerator · validation · telemetry
 ForgeOps.Forge          Roslyn compile · banned-API audit · sandbox runner · canonical acceptance suite
 ForgeOps.Forge.Sandbox  the short-lived child process that executes generated tests
-ForgeOps.Demo           CustomerHubJourney — single source of truth for both modes
+ForgeOps.Demo           JourneyCatalog — LoyaltyCardJourney (UI) + CustomerHubJourney (logic)
 ForgeOps.Contracts      shared DTOs / enums
 ```
 
