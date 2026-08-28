@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\src\ForgeOps.Contracts\ForgeOps.Contracts.csproj" />
     <ProjectReference Include="..\..\src\ForgeOps.AI\ForgeOps.AI.csproj" />
     <ProjectReference Include="..\..\src\ForgeOps.Demo\ForgeOps.Demo.csproj" />
+    <ProjectReference Include="..\..\src\ForgeOps.Forge\ForgeOps.Forge.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,5 +1,7 @@
 using ForgeOps.Contracts;
 using ForgeOps.Contracts.Ai;
+using ForgeOps.Contracts.Engineering;
+using ForgeOps.Contracts.Forge;
 using ForgeOps.Contracts.Journey;
 using ForgeOps.Demo;
 
@@ -49,6 +51,7 @@ public sealed class JourneyPlayer
         CurrentIndex = 0;
         IsThinking = false;
         ThinkingLabel = null;
+        _liveImplementation = null;
         Changed?.Invoke();
     }
 
@@ -79,9 +82,17 @@ public sealed class JourneyPlayer
         var nextIndex = CurrentIndex + 1;
         var nextStep = _steps[nextIndex];
 
-        if (Mode == AppMode.Live && nextStep.Kind == JourneyStepKind.Specification)
+        if (Mode == AppMode.Live)
         {
-            var live = await RunLiveSpecificationAsync(nextStep);
+            var live = nextStep.Kind switch
+            {
+                JourneyStepKind.Specification => await RunLiveSpecificationAsync(nextStep),
+                JourneyStepKind.Implementation => await RunLiveImplementationAsync(nextStep),
+                JourneyStepKind.AcceptanceRun => await RunLiveAcceptanceAsync(nextStep),
+                _ when nextStep.SimulatedThinkingMs > 0 => await SimulateAndOk(nextStep),
+                _ => AdvanceResult.Ok
+            };
+
             if (live.Kind != AdvanceResultKind.Ok)
             {
                 return live;
@@ -117,6 +128,207 @@ public sealed class JourneyPlayer
             IsThinking = false;
             ThinkingLabel = null;
         }
+    }
+
+    private async Task<AdvanceResult> SimulateAndOk(JourneyStep step)
+    {
+        await SimulateThinkingAsync(step);
+        return AdvanceResult.Ok;
+    }
+
+    private ForgeOps.Contracts.Forge.GeneratedImplementation? _liveImplementation;
+
+    private async Task<AdvanceResult> RunLiveImplementationAsync(JourneyStep step)
+    {
+        IsThinking = true;
+        ThinkingLabel = "qwen3:8b is writing the implementation and tests…";
+        Changed?.Invoke();
+
+        try
+        {
+            var spec = Definition!.Steps.First(s => s.Kind == JourneyStepKind.Specification).Payload.Specification;
+            if (spec is null)
+            {
+                return AdvanceResult.ModelError("No approved specification is available.");
+            }
+
+            var result = await _api.ForgeGenerateAsync(Definition.RequirementText, spec, Definition.ProjectName);
+            if (result.IsBridgeOffline)
+            {
+                return AdvanceResult.BridgeOffline(result.FailureDetail ?? "AI Bridge is offline.");
+            }
+
+            if (!result.Ok || result.Response is null)
+            {
+                return AdvanceResult.ModelError(result.FailureDetail ?? "Code generation failed.");
+            }
+
+            var forge = result.Response.Result;
+            _liveImplementation = forge.Implementation;
+
+            _steps[step.Order] = step with
+            {
+                Caption = "qwen3:8b wrote this implementation and tests live.",
+                Payload = step.Payload with
+                {
+                    Implementation = forge.Implementation,
+                    AiInteraction = forge.Interaction,
+                    Notes =
+                    [
+                        $"Live generation — {forge.Implementation.RepairAttempts} compile-repair round(s), "
+                        + $"{forge.Implementation.Files.Count} file(s).",
+                        result.Response.RunnerDisabled
+                            ? "The sandbox runner is disabled on this host; the acceptance run will be skipped."
+                            : "The audit and sandbox run follow."
+                    ]
+                }
+            };
+
+            // Feed the deterministic audit into the Audit + Quality Gate steps.
+            ApplyAudit(forge);
+            return AdvanceResult.Ok;
+        }
+        finally
+        {
+            IsThinking = false;
+            ThinkingLabel = null;
+        }
+    }
+
+    private async Task<AdvanceResult> RunLiveAcceptanceAsync(JourneyStep step)
+    {
+        if (_liveImplementation is null)
+        {
+            return AdvanceResult.ModelError("No generated implementation is available to run.");
+        }
+
+        IsThinking = true;
+        ThinkingLabel = "Executing the acceptance suite in the sandbox…";
+        Changed?.Invoke();
+
+        try
+        {
+            var result = await _api.ForgeExecuteAsync(_liveImplementation);
+            if (!result.Ok || result.Response is null)
+            {
+                return AdvanceResult.ModelError(result.FailureDetail ?? "The sandbox run failed.");
+            }
+
+            var forge = result.Response.Result;
+
+            _steps[step.Order] = step with
+            {
+                Caption = result.Response.RunnerDisabled
+                    ? "The code runner is disabled on this host — generation and audit still ran for real."
+                    : "The sandbox executed the acceptance suite against the generated code.",
+                Payload = step.Payload with
+                {
+                    AiTestRun = forge.AiTestRun,
+                    CanonicalTestRun = forge.CanonicalTestRun,
+                    Acceptance = forge.Acceptance,
+                    Notes = result.Response.RunnerDisabled
+                        ? ["Set CodeRunner:Enabled=true on a machine you control to execute the generated code."]
+                        : [BuildAcceptanceNote(forge)]
+                }
+            };
+
+            ApplyAcceptanceToGates(forge);
+            return AdvanceResult.Ok;
+        }
+        finally
+        {
+            IsThinking = false;
+            ThinkingLabel = null;
+        }
+    }
+
+    private static string BuildAcceptanceNote(ForgeOps.Contracts.Forge.ForgeResult forge)
+    {
+        var c = forge.CanonicalTestRun;
+        var total = c is null ? 0 : c.Passed + c.Failed;
+        var satisfied = forge.Acceptance.Count(a => a.Status == ForgeOps.Contracts.Forge.AcceptanceStatus.Satisfied);
+        return $"Requirement satisfied: {forge.RequirementSatisfied}. "
+             + $"Canonical suite {c?.Passed ?? 0}/{total} passed · {satisfied}/{forge.Acceptance.Count} acceptance criteria met.";
+    }
+
+    private void ApplyAudit(ForgeResult forge)
+    {
+        var auditIndex = _steps.FindIndex(s => s.Kind == JourneyStepKind.Audit);
+        if (auditIndex >= 0)
+        {
+            _steps[auditIndex] = _steps[auditIndex] with
+            {
+                Payload = _steps[auditIndex].Payload with { Audit = forge.Audit }
+            };
+        }
+
+        // Rebuild the quality-gate timeline from the real audit so Live Mode shows real state.
+        var gatesIndex = _steps.FindIndex(s => s.Kind == JourneyStepKind.QualityGates);
+        if (gatesIndex < 0)
+        {
+            return;
+        }
+
+        var a = forge.Audit;
+        var gates = new List<QualityGate>
+        {
+            SimpleGate("Compile (Roslyn)", a.Compiled ? GateStatus.Passed : GateStatus.Failed,
+                a.Compiled ? [$"built after {a.RepairAttempts} repair round(s)"] : a.Diagnostics.Where(d => d.Severity == Contracts.Forge.DiagnosticSeverity.Error).Select(d => $"{d.Code}: {d.Message}").ToList()),
+            SimpleGate("Banned-API scan", a.BannedApis.Count == 0 ? GateStatus.Passed : GateStatus.Failed,
+                a.BannedApis.Count == 0 ? ["0 findings"] : a.BannedApis.Select(b => $"{b.File}:{b.Line} {b.Api}").ToList(), blocking: true),
+            SimpleGate("Architecture", a.ArchitecturePassed ? GateStatus.Passed : GateStatus.Failed, a.ArchitectureNotes.ToList()),
+            SimpleGate("AI-authored tests", GateStatus.Pending, []),
+            SimpleGate("Acceptance (canonical)", GateStatus.Pending, [])
+        };
+
+        _steps[gatesIndex] = _steps[gatesIndex] with { Payload = _steps[gatesIndex].Payload with { Gates = gates } };
+    }
+
+    private static QualityGate SimpleGate(string name, GateStatus status, IReadOnlyList<string> lines, bool blocking = false) => new()
+    {
+        Name = name,
+        Status = status,
+        Blocking = blocking,
+        Evidence = status == GateStatus.Failed ? [] : lines,
+        Errors = status == GateStatus.Failed ? lines : [],
+        Timestamp = DateTimeOffset.UtcNow
+    };
+
+    private void ApplyAcceptanceToGates(ForgeResult forge)
+    {
+        var gatesIndex = _steps.FindIndex(s => s.Kind == JourneyStepKind.QualityGates);
+        if (gatesIndex < 0 || _steps[gatesIndex].Payload.Gates is null)
+        {
+            return;
+        }
+
+        var updated = _steps[gatesIndex].Payload.Gates!
+            .Select(g => g.Name switch
+            {
+                "AI-authored tests" => GateFromRun(g, forge.AiTestRun, blocking: false),
+                "Acceptance (canonical)" => GateFromRun(g, forge.CanonicalTestRun, blocking: true),
+                _ => g
+            })
+            .ToList();
+
+        _steps[gatesIndex] = _steps[gatesIndex] with { Payload = _steps[gatesIndex].Payload with { Gates = updated } };
+    }
+
+    private static QualityGate GateFromRun(QualityGate gate, TestRunResult? run, bool blocking)
+    {
+        if (run is null || !run.Executed)
+        {
+            return gate with { Status = GateStatus.Skipped, Blocking = blocking, Evidence = [run?.RunnerDetail ?? "not run"] };
+        }
+
+        var passed = run.AllPassed;
+        return gate with
+        {
+            Status = passed ? GateStatus.Passed : GateStatus.Failed,
+            Blocking = blocking,
+            Evidence = passed ? [$"{run.Passed} / {run.Passed + run.Failed} passed"] : [],
+            Errors = passed ? [] : run.Results.Where(r => r.Outcome == TestOutcome.Failed).Select(r => $"{r.Name}: {r.Message}").ToList()
+        };
     }
 
     private async Task<AdvanceResult> RunLiveSpecificationAsync(JourneyStep step)
@@ -164,10 +376,12 @@ public sealed class JourneyPlayer
     private static string LabelFor(JourneyStepKind kind) => kind switch
     {
         JourneyStepKind.Specification => "qwen3:8b is drafting the specification…",
-        JourneyStepKind.ArchitectureAnalysis => "Running deterministic architecture rules…",
+        JourneyStepKind.Implementation => "qwen3:8b is writing the implementation and tests…",
+        JourneyStepKind.Audit => "Running Roslyn compile, analyzers and the banned-API scan…",
         JourneyStepKind.QualityGates => "Executing the quality gate pipeline…",
-        JourneyStepKind.AiReview => "qwen3:8b is reviewing the diff…",
-        JourneyStepKind.Merge => "Re-running gates after the fix…",
+        JourneyStepKind.AiReview => "qwen3:8b is reviewing the generated diff…",
+        JourneyStepKind.AcceptanceRun => "Executing the acceptance suite in the sandbox…",
+        JourneyStepKind.Merge => "Confirming every gate is green…",
         _ => "Working…"
     };
 }

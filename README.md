@@ -29,14 +29,18 @@ Same journey, same components, same UI — only the data source and the mode bad
 
 > *"Customers should receive loyalty points after successful purchases."*
 
-Sign in → create requirement → **AI specification** → human review → **architecture
-analysis** (finds an `Application → Infrastructure` violation) → pull request → **quality
-gates** (two blocking failures) → **AI review** (CRITICAL: duplicate points crediting) →
-**human decision** → fix & merge → telemetry → **engineering health 87** with a full
-"Why?".
+Sign in → create requirement → **AI specification** → human review → **AI implementation**
+(the model writes `LoyaltyService` + tests, with a compile-error repair loop) →
+**deterministic audit** (Roslyn compile, analyzers, banned-API scan, architecture) →
+quality gates → **AI review** → **human decision** (approve execution) → **run & verify**
+(the sandbox executes ForgeOps' own acceptance suite against the generated code and maps
+every result back to an acceptance criterion) → merge → telemetry → **engineering
+health** with a full "Why?".
 
-The broken scenario is real: the gates and findings correspond to genuine rule
-definitions, not fabricated results (ProjectForge.md §31).
+The payoff is real: ForgeOps generates working code and *proves* it satisfies the
+requirement by running it. The §31 bug is genuinely detectable — a weak implementation
+passes the model's own tests but fails ForgeOps' canonical AC-2 "duplicate payment event"
+test.
 
 ---
 
@@ -62,16 +66,19 @@ Full detail: [docs/development.md](docs/development.md).
 Modular monolith. Slice 1 projects:
 
 ```
-ForgeOps.Web         Blazor WebAssembly (static)  ── deployed to Vercel
-ForgeOps.Api         ASP.NET Core minimal API     ── deployed to a free-tier host
-ForgeOps.AI          AI Gateway · IAiProvider · OllamaBridgeProvider · validation · telemetry
-ForgeOps.Demo        CustomerHubJourney — single source of truth for both modes
-ForgeOps.Contracts   shared DTOs / enums
+ForgeOps.Web            Blazor WebAssembly (static)  ── deployed to Vercel
+ForgeOps.Api            ASP.NET Core minimal API     ── deployed to a free-tier host
+ForgeOps.AI             AI Gateway · IAiProvider · OllamaBridgeProvider · CodeGenerator · validation · telemetry
+ForgeOps.Forge          Roslyn compile · banned-API audit · sandbox runner · canonical acceptance suite
+ForgeOps.Forge.Sandbox  the short-lived child process that executes generated tests
+ForgeOps.Demo           CustomerHubJourney — single source of truth for both modes
+ForgeOps.Contracts      shared DTOs / enums
 ```
 
 - [docs/ai-architecture.md](docs/ai-architecture.md) — the AI Bridge & tunnel, step by step
 - [docs/hosting.md](docs/hosting.md) — the free-tier topology and how to swap any piece
-- [docs/decisions/0001-slice-1-scope.md](docs/decisions/0001-slice-1-scope.md) — what's in slice 1 and why
+- [docs/decisions/0001-slice-1-scope.md](docs/decisions/0001-slice-1-scope.md) — slice 1 scope
+- [docs/decisions/0002-generated-code-execution.md](docs/decisions/0002-generated-code-execution.md) — generating & running code, and its guardrails
 
 ## Cloud deployment
 
@@ -96,32 +103,43 @@ simulated, health weights sum to 1).
 
 ## Security & AI safety
 
-- Repository/requirement text is treated as **untrusted input**; system instructions,
-  trusted context and untrusted content are kept in separate zones in every prompt.
+- Requirement text is treated as **untrusted input**; system instructions, trusted context
+  and untrusted content are kept in separate zones in every prompt.
 - The AI Bridge tunnel is authenticated — Ollama is never exposed directly.
-- AI cannot merge PRs, deploy, run commands, or override a deterministic gate.
-- Invalid AI structured output never enters the model — it is rejected by a deterministic
+- AI cannot merge PRs, deploy, override a deterministic gate, or decide to ship code.
+- **Generated code** is gated before it runs: a deterministic banned-API scan (process /
+  filesystem / network / interop / unsafe), compilation against a curated reference set,
+  then execution only as test methods in a separate short-lived process with a wall-clock
+  budget. A human approves execution of the exact code they reviewed. See
+  [ADR 0002](docs/decisions/0002-generated-code-execution.md) for the full guardrails and
+  their limits. Set `CodeRunner:Enabled=false` on a shared host to withhold execution
+  entirely.
+- Invalid AI structured output never enters the domain — it is rejected by a deterministic
   validator and recorded as such.
 
 ## Roadmap
 
-1. **Slice 2** — `ForgeOps.Domain/Application/Infrastructure`, EF Core + free Postgres,
-   persist journeys, auth foundation.
-2. **Slice 3** — real deterministic analysers (`ForgeOps.Analysis`, `ForgeOps.Quality`)
-   with Roslyn / NetArchTest, replacing the seeded architecture & gate fixtures.
-3. **Slice 4** — GitHub read-only ingestion (repos, PRs, changed files, CI status,
-   webhook validation).
-4. **Slice 5** — live AI code review over a real PR diff; `ForgeOps.Observability`,
-   OTLP export to a free sink; `IntegrationTests` / `EndToEndTests` (Playwright).
-5. **Slice 6** — optional Azure path (Key Vault, Azure Database for PostgreSQL).
+1. **Slice 3** — `ForgeOps.Domain/Application/Infrastructure`, EF Core + free Postgres,
+   persist journeys and forge runs, auth foundation.
+2. **Slice 4** — broaden the generation target; stronger sandbox isolation (memory caps /
+   Job Objects / container). Real deterministic analysers on the wider codebase.
+3. **Slice 5** — GitHub read-only ingestion (repos, PRs, changed files, CI status,
+   webhook validation); open the generated implementation as a real PR.
+4. **Slice 6** — `ForgeOps.Observability`, OTLP export to a free sink;
+   `IntegrationTests` / `EndToEndTests` (Playwright).
+5. **Slice 7** — optional Azure path (Key Vault, Azure Database for PostgreSQL).
 
-## Trade-offs & limitations (slice 1)
+## Trade-offs & limitations
 
-- Architecture findings, quality gates and PR data are **seeded fixtures** for the
-  CustomerHub project — clearly framed as such in the UI — until slice 3.
+- The generation target is deliberately **one component against a fixed contract** so an
+  8B local model succeeds reliably. A compile-error repair loop (max 2 rounds) absorbs the
+  common failures; if it still doesn't compile, the audit step shows why.
+- The sandbox is a static-gate + curated-references + separate-process + timeout design —
+  solid for trusted-ish model output, **not** a hostile-code sandbox. Hard memory/OS
+  isolation is slice 4. See [ADR 0002](docs/decisions/0002-generated-code-execution.md).
+- The AI *review* step and engineering-health score use seeded data in Live Mode; the
+  **specification, implementation, audit and acceptance run are real**.
 - No persistence yet: a journey resets on reload.
-- Live Mode wires the **specification** step to the real model; other steps use the
-  seeded project data.
 
 ---
 

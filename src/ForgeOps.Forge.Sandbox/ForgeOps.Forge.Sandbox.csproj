@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>ForgeOps.Forge.Sandbox</RootNamespace>
+    <AssemblyName>ForgeOps.Forge.Sandbox</AssemblyName>
+    <Nullable>enable</Nullable>
+    <!-- Keep this executable tiny and dependency-free: it loads and runs untrusted code. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,111 @@
+@using ForgeOps.Contracts.Forge
+
+<div class="stack">
+    <div class="panel panel--focus panel__pad">
+        <div class="spread">
+            <strong>Deterministic audit</strong>
+            <span class="badge @VerdictClass" aria-label="audit verdict @Report.Verdict">
+                <span class="badge__dot"></span>@VerdictLabel
+            </span>
+        </div>
+        <div class="grid grid--2 mt-2 small">
+            <div><span class="muted">Compile (Roslyn)</span><br />
+                @if (Report.Compiled)
+                {
+                    <span class="is-pass">✓ built</span>
+                    @if (Report.RepairAttempts > 0)
+                    {
+                        <span class="muted"> after @Report.RepairAttempts repair round(s)</span>
+                    }
+                }
+                else
+                {
+                    <span class="is-fail">✗ did not compile</span>
+                }
+            </div>
+            <div><span class="muted">Banned-API scan</span><br />
+                @if (Report.BannedApis.Count == 0)
+                {
+                    <span class="is-pass">✓ 0 findings</span>
+                }
+                else
+                {
+                    <span class="is-fail">✗ @Report.BannedApis.Count finding(s) — execution blocked</span>
+                }
+            </div>
+            <div><span class="muted">Architecture</span><br />
+                <span class="@(Report.ArchitecturePassed ? "is-pass" : "is-warn")">
+                    @(Report.ArchitecturePassed ? "✓ pass" : "⚠ notes")
+                </span>
+            </div>
+            <div><span class="muted">Execution</span><br />
+                <span class="@(Report.ExecutionAllowed ? "is-pass" : "is-fail")">
+                    @(Report.ExecutionAllowed ? "permitted" : "blocked by audit")
+                </span>
+            </div>
+        </div>
+    </div>
+
+    @if (Report.BannedApis.Count > 0)
+    {
+        <div class="panel panel__pad">
+            <div class="panel__title is-fail">Banned APIs — the code will not be executed</div>
+            @foreach (var b in Report.BannedApis)
+            {
+                <div class="mono is-fail mt-1">@b.File:@b.Line · @b.Api <span class="muted">(@b.Reason)</span></div>
+            }
+        </div>
+    }
+
+    @if (Report.Diagnostics.Count > 0)
+    {
+        <div class="panel panel__pad">
+            <div class="panel__title">Compiler diagnostics</div>
+            @foreach (var d in Report.Diagnostics)
+            {
+                <div class="mono mt-1 @DiagClass(d.Severity)">
+                    @d.Severity.ToString().ToLowerInvariant() @d.Code
+                    @(d.File is not null ? $"· {d.File}:{d.Line}" : null) — @d.Message
+                </div>
+            }
+        </div>
+    }
+
+    @if (Report.ArchitectureNotes.Count > 0)
+    {
+        <div class="panel panel__pad">
+            <div class="panel__title">Architecture</div>
+            <ul class="stack mt-1 small @(Report.ArchitecturePassed ? "muted" : "is-warn")">
+                @foreach (var n in Report.ArchitectureNotes)
+                {
+                    <li>@n</li>
+                }
+            </ul>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public AuditReport Report { get; set; } = default!;
+
+    private string VerdictLabel => Report.Verdict switch
+    {
+        AuditVerdict.Passed => "PASSED",
+        AuditVerdict.PassedWithWarnings => "PASSED · WARNINGS",
+        _ => "FAILED"
+    };
+
+    private string VerdictClass => Report.Verdict switch
+    {
+        AuditVerdict.Passed => "is-pass",
+        AuditVerdict.PassedWithWarnings => "is-warn",
+        _ => "is-fail"
+    };
+
+    private static string DiagClass(DiagnosticSeverity s) => s switch
+    {
+        DiagnosticSeverity.Error => "is-fail",
+        DiagnosticSeverity.Warning => "is-warn",
+        _ => "muted"
+    };
+}

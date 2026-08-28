@@ -80,12 +80,13 @@
         {
             JourneyStepKind.Specification => "Generate specification",
             JourneyStepKind.HumanReview => "Review & approve",
-            JourneyStepKind.ArchitectureAnalysis => "Analyze architecture",
-            JourneyStepKind.PullRequest => "Open pull request",
-            JourneyStepKind.QualityGates => "Run quality gates",
+            JourneyStepKind.Implementation => "Generate implementation",
+            JourneyStepKind.Audit => "Run deterministic audit",
+            JourneyStepKind.QualityGates => "Show quality gates",
             JourneyStepKind.AiReview => "Run AI review",
-            JourneyStepKind.HumanDecision => "Record human decision",
-            JourneyStepKind.Merge => "Fix blockers & merge",
+            JourneyStepKind.HumanDecision => "Approve execution",
+            JourneyStepKind.AcceptanceRun => "Run the code",
+            JourneyStepKind.Merge => "Merge",
             JourneyStepKind.Telemetry => "Show telemetry",
             JourneyStepKind.EngineeringHealth => "Show engineering health",
             _ => "Continue"
@@ -110,15 +111,22 @@
                 nodes.Add(new("Validation", ai.Validation.Valid ? "Passed deterministic schema check (§9.2)" : string.Join("; ", ai.Validation.Errors)));
                 break;
 
-            case JourneyStepKind.ArchitectureAnalysis:
-                foreach (var f in step.Payload.ArchitectureFindings ?? [])
+            case JourneyStepKind.Implementation when step.Payload.Implementation is { } impl:
+                nodes.Add(new("Artifact", $"{impl.Files.Count} generated file(s)"));
+                nodes.Add(new("Repair", $"{impl.RepairAttempts} compile-error round(s)"));
+                if (step.Payload.AiInteraction is { } gi)
                 {
-                    nodes.Add(new("Finding", $"{f.RuleId} — {f.Name}"));
-                    foreach (var e in f.Evidence)
-                    {
-                        nodes.Add(new("Evidence", e, Mono: true));
-                    }
-                    nodes.Add(new("Rule", f.Description));
+                    nodes.Add(new("Source", $"{gi.Provider} · {gi.Model} · prompt {gi.PromptVersion}", Mono: true));
+                }
+                break;
+
+            case JourneyStepKind.Audit when step.Payload.Audit is { } audit:
+                nodes.Add(new("Verdict", audit.Verdict.ToString(), IsDecision: true));
+                nodes.Add(new("Compile", audit.Compiled ? "Roslyn build succeeded" : "did not compile"));
+                nodes.Add(new("Banned-API scan", $"{audit.BannedApis.Count} finding(s)"));
+                foreach (var b in audit.BannedApis)
+                {
+                    nodes.Add(new("Evidence", $"{b.File}:{b.Line} {b.Api}", Mono: true));
                 }
                 break;
 
@@ -129,6 +137,18 @@
                     foreach (var e in g.Errors)
                     {
                         nodes.Add(new("Evidence", e, Mono: true));
+                    }
+                }
+                break;
+
+            case JourneyStepKind.AcceptanceRun:
+                foreach (var a in step.Payload.Acceptance ?? [])
+                {
+                    nodes.Add(new(a.CriterionId, $"{a.Status} — {a.Statement}",
+                        IsDecision: a.Status == Contracts.Forge.AcceptanceStatus.Satisfied));
+                    foreach (var t in a.EvidenceTests)
+                    {
+                        nodes.Add(new("Test", t, Mono: true));
                     }
                 }
                 break;

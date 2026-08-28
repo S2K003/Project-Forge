@@ -1,0 +1,68 @@
+@using ForgeOps.Contracts.Forge
+
+<div class="panel panel--strong panel__pad">
+    <div class="spread">
+        <strong>@Title</strong>
+        @if (Run is null || !Run.Executed)
+        {
+            <span class="chip is-muted">not run</span>
+        }
+        else if (Run.TimedOut)
+        {
+            <span class="badge is-fail"><span class="badge__dot"></span>TIMED OUT</span>
+        }
+        else
+        {
+            <span class="badge @(Run.AllPassed ? "is-pass" : "is-fail")">
+                <span class="badge__dot"></span>@Run.Passed / @(Run.Passed + Run.Failed) PASSED
+            </span>
+        }
+    </div>
+
+    @if (Run is null || !Run.Executed)
+    {
+        <div class="small muted mt-1">@(Run?.RunnerDetail ?? "This suite has not been executed yet.")</div>
+    }
+    else
+    {
+        <div class="small muted mt-1">@Run.RunnerDetail</div>
+        <div class="stack mt-2">
+            @foreach (var r in Run.Results)
+            {
+                <div class="row" style="gap:8px;align-items:flex-start">
+                    <span class="@OutcomeClass(r.Outcome)" aria-hidden="true">@OutcomeGlyph(r.Outcome)</span>
+                    <div style="flex:1">
+                        <span class="mono small">@r.Name</span>
+                        @foreach (var c in r.Criteria)
+                        {
+                            <span class="chip small is-info" style="margin-left:6px">@c</span>
+                        }
+                        @if (r.Outcome == TestOutcome.Failed && !string.IsNullOrWhiteSpace(r.Message))
+                        {
+                            <div class="mono small is-fail mt-1">@r.Message</div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Test run";
+    [Parameter] public TestRunResult? Run { get; set; }
+
+    private static string OutcomeClass(TestOutcome o) => o switch
+    {
+        TestOutcome.Passed => "is-pass",
+        TestOutcome.Failed => "is-fail",
+        _ => "is-muted"
+    };
+
+    private static string OutcomeGlyph(TestOutcome o) => o switch
+    {
+        TestOutcome.Passed => "✓",
+        TestOutcome.Failed => "✗",
+        _ => "–"
+    };
+}

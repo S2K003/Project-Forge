@@ -2,6 +2,7 @@ using ForgeOps.AI;
 using ForgeOps.Api.Endpoints;
 using ForgeOps.Api.Health;
 using ForgeOps.Api.Observability;
+using ForgeOps.Forge;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -16,6 +17,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 
 builder.Services.AddForgeOpsAi(builder.Configuration);
+builder.Services.AddForgeOpsForge(builder.Configuration);
 builder.Services.AddSingleton<AiBridgeStatusCache>();
 builder.Services.AddHostedService<AiBridgeStatusPoller>();
 
@@ -63,6 +65,7 @@ app.UseCors(WebCorsPolicy);
 app.MapHealthEndpoints();
 app.MapDemoEndpoints();
 app.MapRequirementEndpoints();
+app.MapForgeEndpoints();
 
 app.Run();
 

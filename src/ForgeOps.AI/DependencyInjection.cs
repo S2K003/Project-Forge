@@ -54,6 +54,7 @@ public static class DependencyInjection
         }
 
         services.AddScoped<AiGateway>();
+        services.AddScoped<CodeGenerator>();
         return services;
     }
 

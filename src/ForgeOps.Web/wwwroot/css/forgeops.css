@@ -399,6 +399,32 @@ code, kbd, pre { font-family: var(--font-mono); }
 .modecard h3 { margin-bottom: 6px; }
 .modecard p { color: var(--text-secondary); font-size: 13px; margin: 0; }
 
+/* Code surface */
+.codeblock {
+    border: 1px solid var(--glass-border-strong);
+    border-radius: var(--radius-md);
+    background: rgba(0, 0, 0, 0.34);
+    overflow: hidden;
+}
+.codeblock__bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--glass-border);
+    background: var(--glass-surface);
+}
+.codeblock__body {
+    margin: 0;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.55;
+    color: #cfd6e0;
+    white-space: pre;
+    max-height: 420px;
+}
+.small.chip { font-size: 10px; padding: 1px 6px; }
+
 .list-reset { list-style: none; margin: 0; padding: 0; }
 .muted { color: var(--text-muted); }
 .small { font-size: 12px; }

@@ -1,0 +1,47 @@
+@using ForgeOps.Contracts.Forge
+
+<div class="panel panel--focus panel__pad">
+    <div class="panel__title">Acceptance criteria — verified by execution</div>
+    <div class="stack mt-2">
+        @foreach (var a in Outcomes)
+        {
+            <div class="row" style="gap:10px;align-items:flex-start">
+                <span class="@StatusClass(a.Status)" aria-hidden="true">@StatusGlyph(a.Status)</span>
+                <div style="flex:1">
+                    <strong class="is-info">@a.CriterionId</strong>
+                    <span class="@StatusClass(a.Status)"> · @StatusLabel(a.Status)</span>
+                    <div class="small mt-1">@a.Statement</div>
+                    @if (a.EvidenceTests.Count > 0)
+                    {
+                        <div class="mono small muted mt-1">@string.Join(", ", a.EvidenceTests)</div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<AcceptanceOutcome> Outcomes { get; set; } = [];
+
+    private static string StatusClass(AcceptanceStatus s) => s switch
+    {
+        AcceptanceStatus.Satisfied => "is-pass",
+        AcceptanceStatus.NotSatisfied => "is-fail",
+        _ => "is-muted"
+    };
+
+    private static string StatusGlyph(AcceptanceStatus s) => s switch
+    {
+        AcceptanceStatus.Satisfied => "✓",
+        AcceptanceStatus.NotSatisfied => "✗",
+        _ => "○"
+    };
+
+    private static string StatusLabel(AcceptanceStatus s) => s switch
+    {
+        AcceptanceStatus.Satisfied => "satisfied",
+        AcceptanceStatus.NotSatisfied => "not satisfied",
+        _ => "not covered"
+    };
+}

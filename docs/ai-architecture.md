@@ -100,6 +100,30 @@ packet doesn't flap the UI).
   (`ForgeOps.Demo/CustomerHubJourney.cs`) and every AI step is a clearly-labelled
   recording.
 
+## From specification to running code
+
+Live Mode does not stop at a specification. Once a human approves the spec:
+
+```
+CodeGenerator (ForgeOps.AI)         qwen3:8b writes LoyaltyService + tests
+   │   compile-error repair loop (max 2 rounds, errors fed back to the model)
+   ▼
+GeneratedCodeAuditor (ForgeOps.Forge)   Roslyn compile · analyzers ·
+   │                                    BannedApiScanner · architecture checks
+   ▼   (a banned-API finding or compile error blocks execution here)
+human approves execution
+   ▼
+SandboxRunner → ForgeOps.Forge.Sandbox   separate process, curated references,
+   │                                     wall-clock budget, process-tree kill
+   ▼
+canonical acceptance suite runs → results mapped to AC-1…AC-n
+```
+
+- Endpoints: `POST /api/forge/run` (generate + audit, `execute:false`),
+  `POST /api/forge/execute` (audit + sandbox-run an already-generated implementation).
+- Execution posture is config: `CodeRunner:Enabled=false` on a shared host stops after the
+  audit. Full guardrails and their limits: [decisions/0002-generated-code-execution.md](decisions/0002-generated-code-execution.md).
+
 ## Prompt & model tracking
 
 Every AI interaction records provider, model, model version, **prompt version**,

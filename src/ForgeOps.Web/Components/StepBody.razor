@@ -66,47 +66,41 @@
             </DecisionRibbon>
             break;
 
-        case JourneyStepKind.ArchitectureAnalysis:
-            <div class="stack">
-                @foreach (var f in Step.Payload.ArchitectureFindings ?? [])
+        case JourneyStepKind.Implementation when Step.Payload.Implementation is { } impl:
+            <div class="panel panel--strong panel__pad">
+                <div class="panel__title">What the model produced</div>
+                <p class="mt-2">@impl.Summary</p>
+                @if (!string.IsNullOrWhiteSpace(impl.Rationale))
                 {
-                    <div class="panel panel--focus panel__pad">
-                        <div class="spread">
-                            <strong>@f.RuleId — @f.Name</strong>
-                            <SeverityBadge Severity="f.Severity" />
-                        </div>
-                        <p class="mt-2">@f.Description</p>
-                        <div class="panel__title mt-2">Evidence</div>
-                        @foreach (var e in f.Evidence)
-                        {
-                            <div class="mono muted">@e</div>
-                        }
-                        @if (!string.IsNullOrWhiteSpace(f.RemediationGuidance))
-                        {
-                            <div class="mt-2"><span class="muted">Remediation:</span> @f.RemediationGuidance</div>
-                        }
-                    </div>
+                    <p class="small muted mt-1">@impl.Rationale</p>
+                }
+                <div class="row mt-2 small muted">
+                    <span class="chip">@impl.Files.Count file(s)</span>
+                    <span class="chip">@impl.RepairAttempts compile-repair round(s)</span>
+                </div>
+            </div>
+            <div class="stack mt-3">
+                @foreach (var file in impl.Files)
+                {
+                    <CodeBlock Path="@file.Path" Role="@file.Role.ToString().ToLowerInvariant()" Content="@file.Content" />
                 }
             </div>
+            <AiInteractionCard Interaction="Step.Payload.AiInteraction" />
             break;
 
-        case JourneyStepKind.PullRequest when Step.Payload.PullRequest is { } pr:
-            <div class="panel panel--strong panel__pad">
-                <div class="spread">
-                    <strong style="font-size:16px">PR #@pr.Number · @pr.Title</strong>
-                    <span class="chip">@pr.Branch</span>
-                </div>
-                <div class="row mt-2 small muted">
-                    <span>@pr.FilesChanged files changed</span>
-                    <span class="is-pass">+@pr.Additions</span>
-                    <span class="is-fail">−@pr.Deletions</span>
-                </div>
-                <ul class="list-reset mt-2 mono small">
-                    @foreach (var file in pr.ChangedFiles)
-                    {
-                        <li class="muted">@file</li>
-                    }
-                </ul>
+        case JourneyStepKind.Audit when Step.Payload.Audit is { } audit:
+            <AuditReportView Report="audit" />
+            break;
+
+        case JourneyStepKind.Audit:
+            <div class="panel panel__pad muted">The deterministic audit runs here once code has been generated.</div>
+            break;
+
+        case JourneyStepKind.AcceptanceRun:
+            <div class="stack">
+                <AcceptanceView Outcomes="Step.Payload.Acceptance ?? []" />
+                <TestRunView Title="ForgeOps canonical acceptance suite" Run="Step.Payload.CanonicalTestRun" />
+                <TestRunView Title="Model's own tests" Run="Step.Payload.AiTestRun" />
             </div>
             break;
 
@@ -148,10 +142,10 @@
         case JourneyStepKind.HumanDecision:
             <DecisionRibbon Simulated="Sim(Step.Payload.AiInteraction)"
                             Decision="Step.Payload.AiInteraction?.Decision"
-                            PendingHint="the model cannot accept or reject its own findings.">
+                            PendingHint="the model cannot approve running its own code.">
                 <AiContent>
-                    Raised 1 CRITICAL, 1 HIGH, 1 MEDIUM and 1 suggestion. The CRITICAL (duplicate points
-                    crediting) is corroborated by deterministic evidence.
+                    Reviewed the generated diff and verified the idempotency approach. The deterministic audit
+                    is clean. Recommends proceeding to execution.
                 </AiContent>
             </DecisionRibbon>
             break;

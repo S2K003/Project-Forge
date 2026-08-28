@@ -17,6 +17,8 @@ csharp_style_namespace_declarations = file_scoped:warning
 dotnet_diagnostic.CA1848.severity = none
 # CA1515: internal-by-default for app types — Program is intentionally public for WebApplicationFactory.
 dotnet_diagnostic.CA1515.severity = none
+# RS1034: this repo is not a Roslyn analyzer package; SyntaxToken.Kind() is fine here.
+dotnet_diagnostic.RS1034.severity = none
 
 [*.{json,js,yml,yaml,csproj,props,targets,html,razor,css}]
 indent_size = 2

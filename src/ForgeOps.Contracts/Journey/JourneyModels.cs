@@ -1,12 +1,13 @@
 using ForgeOps.Contracts.Ai;
 using ForgeOps.Contracts.Engineering;
+using ForgeOps.Contracts.Forge;
 
 namespace ForgeOps.Contracts.Journey;
 
 /// <summary>
 /// The one coherent story ForgeOps tells (ProjectForge.md §4, §30). Demo Mode replays
 /// this end-to-end from bundled fixtures; Live Mode performs it for real against a
-/// seeded project and the AI Bridge.
+/// seeded project, the AI Bridge, and the sandboxed code runner.
 /// </summary>
 public enum JourneyStepKind
 {
@@ -14,14 +15,15 @@ public enum JourneyStepKind
     Requirement = 1,
     Specification = 2,
     HumanReview = 3,
-    ArchitectureAnalysis = 4,
-    PullRequest = 5,
+    Implementation = 4,
+    Audit = 5,
     QualityGates = 6,
     AiReview = 7,
     HumanDecision = 8,
-    Merge = 9,
-    Telemetry = 10,
-    EngineeringHealth = 11
+    AcceptanceRun = 9,
+    Merge = 10,
+    Telemetry = 11,
+    EngineeringHealth = 12
 }
 
 public enum JourneyStepState
@@ -84,6 +86,17 @@ public sealed record StepPayload
     public IReadOnlyList<TelemetrySample>? Telemetry { get; init; }
 
     public EngineeringHealth? Health { get; init; }
+
+    // --- forge pipeline (generate → audit → run) ---
+    public GeneratedImplementation? Implementation { get; init; }
+
+    public AuditReport? Audit { get; init; }
+
+    public TestRunResult? AiTestRun { get; init; }
+
+    public TestRunResult? CanonicalTestRun { get; init; }
+
+    public IReadOnlyList<AcceptanceOutcome>? Acceptance { get; init; }
 
     public IReadOnlyList<string>? Notes { get; init; }
 }

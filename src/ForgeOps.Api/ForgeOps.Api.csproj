@@ -18,6 +18,32 @@
     <ProjectReference Include="..\ForgeOps.Contracts\ForgeOps.Contracts.csproj" />
     <ProjectReference Include="..\ForgeOps.AI\ForgeOps.AI.csproj" />
     <ProjectReference Include="..\ForgeOps.Demo\ForgeOps.Demo.csproj" />
+    <ProjectReference Include="..\ForgeOps.Forge\ForgeOps.Forge.csproj" />
+    <!-- Built so the sandbox executable is available, but not linked into the API assembly. -->
+    <ProjectReference Include="..\ForgeOps.Forge.Sandbox\ForgeOps.Forge.Sandbox.csproj"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <!-- Copy the fully-built sandbox (dll + runtimeconfig + deps) next to the API so the
+       code runner can launch it with `dotnet exec sandbox/ForgeOps.Forge.Sandbox.dll`. -->
+  <Target Name="CopyForgeSandbox" AfterTargets="Build">
+    <ItemGroup>
+      <_SandboxFiles Include="$(MSBuildThisFileDirectory)..\ForgeOps.Forge.Sandbox\bin\$(Configuration)\net10.0\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_SandboxFiles)"
+          DestinationFiles="@(_SandboxFiles-&gt;'$(TargetDir)sandbox\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="'@(_SandboxFiles)' != ''" />
+  </Target>
+
+  <Target Name="CopyForgeSandboxOnPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <_SandboxPubFiles Include="$(MSBuildThisFileDirectory)..\ForgeOps.Forge.Sandbox\bin\$(Configuration)\net10.0\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_SandboxPubFiles)"
+          DestinationFiles="@(_SandboxPubFiles-&gt;'$(PublishDir)sandbox\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="'@(_SandboxPubFiles)' != ''" />
+  </Target>
 
 </Project>

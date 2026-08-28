@@ -47,13 +47,20 @@ the designed behaviour.
 ```
 src/
   ForgeOps.Web            Blazor WebAssembly (standalone, static) — the Vercel deployable
-  ForgeOps.Api            ASP.NET Core minimal API — health, AI bridge proxy, spec generation
-  ForgeOps.AI             AI Gateway, IAiProvider, OllamaBridgeProvider, validation, telemetry
+  ForgeOps.Api            ASP.NET Core minimal API — health, AI bridge proxy, spec + forge
+  ForgeOps.AI             AI Gateway, IAiProvider, OllamaBridgeProvider, CodeGenerator, telemetry
+  ForgeOps.Forge          Roslyn compile, BannedApiScanner, SandboxRunner, canonical acceptance suite
+  ForgeOps.Forge.Sandbox  short-lived child process that runs generated tests (built, copied next to the API)
   ForgeOps.Demo           CustomerHubJourney — the single source of truth for the walkthrough
   ForgeOps.Contracts      DTOs and enums shared by Web and Api
 tests/
-  ForgeOps.UnitTests      circuit breaker, output validation, journey integrity
+  ForgeOps.UnitTests      circuit breaker, output validation, banned-API scan,
+                          forge pipeline (compiles + sandbox-runs the reference impl), journey integrity
 ```
+
+The `CodeRunner` section in `ForgeOps.Api` config controls execution of generated code:
+`Enabled` (default true locally; set false on any shared host), `TimeoutSeconds`,
+`MaxRepairAttempts`.
 
 Later phases add `ForgeOps.Domain`, `ForgeOps.Application`, `ForgeOps.Infrastructure`,
 `ForgeOps.GitHub`, `ForgeOps.Analysis`, `ForgeOps.Quality`, `ForgeOps.Observability`

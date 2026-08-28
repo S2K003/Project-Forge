@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using ForgeOps.Contracts;
 using ForgeOps.Contracts.Api;
+using ForgeOps.Contracts.Ai;
+using ForgeOps.Contracts.Forge;
 
 namespace ForgeOps.Web.Services;
 
@@ -74,12 +76,78 @@ public sealed class ForgeOpsApiClient
         return SpecificationCallResult.Failure(reason, detail);
     }
 
+    /// <summary>Generate + audit a candidate implementation (no execution).</summary>
+    public Task<ForgeCallResult> ForgeGenerateAsync(
+        string requirementText, SpecificationDraft spec, string? projectName, CancellationToken ct = default) =>
+        PostForgeAsync("api/forge/run",
+            new ForgeRequest { RequirementText = requirementText, Specification = spec, ProjectName = projectName, Execute = false }, ct);
+
+    /// <summary>Audit + sandbox-run an already-generated implementation (no new AI call).</summary>
+    public Task<ForgeCallResult> ForgeExecuteAsync(GeneratedImplementation implementation, CancellationToken ct = default) =>
+        PostForgeAsync("api/forge/execute",
+            new ExecuteImplementationRequest { Implementation = implementation }, ct);
+
+    private async Task<ForgeCallResult> PostForgeAsync(string path, object body, CancellationToken ct)
+    {
+        HttpResponseMessage response;
+        try
+        {
+            response = await _http.PostAsJsonAsync(path, body, ct);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return ForgeCallResult.Failure("bridge-unreachable", "API unreachable (free-tier host may be cold-starting).");
+        }
+
+        if (response.IsSuccessStatusCode)
+        {
+            var payload = await response.Content.ReadFromJsonAsync<ForgeResponse>(ct);
+            return payload is null
+                ? ForgeCallResult.Failure("model-error", "The API returned an empty response.")
+                : ForgeCallResult.Success(payload);
+        }
+
+        var reason = "model-error";
+        var detail = $"HTTP {(int)response.StatusCode}";
+        try
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ApiProblem>(ct);
+            if (problem is not null)
+            {
+                reason = problem.Reason ?? reason;
+                detail = problem.Detail ?? problem.Title ?? detail;
+            }
+        }
+        catch { /* keep defaults */ }
+
+        if (response.StatusCode == HttpStatusCode.ServiceUnavailable && reason == "model-error")
+        {
+            reason = "bridge-unreachable";
+        }
+
+        return ForgeCallResult.Failure(reason, detail);
+    }
+
     private sealed record ApiProblem
     {
         public string? Title { get; init; }
         public string? Detail { get; init; }
         public string? Reason { get; init; }
     }
+}
+
+public sealed record ForgeCallResult
+{
+    public bool Ok { get; init; }
+    public ForgeResponse? Response { get; init; }
+    public string? FailureReason { get; init; }
+    public string? FailureDetail { get; init; }
+
+    public bool IsBridgeOffline => FailureReason is "bridge-unreachable" or "circuit-open";
+
+    public static ForgeCallResult Success(ForgeResponse response) => new() { Ok = true, Response = response };
+    public static ForgeCallResult Failure(string reason, string detail) =>
+        new() { Ok = false, FailureReason = reason, FailureDetail = detail };
 }
 
 public sealed record SpecificationCallResult

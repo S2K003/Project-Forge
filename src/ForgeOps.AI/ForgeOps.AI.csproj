@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ForgeOps.Contracts\ForgeOps.Contracts.csproj" />
+    <ProjectReference Include="..\ForgeOps.Forge\ForgeOps.Forge.csproj" />
   </ItemGroup>
 
 </Project>

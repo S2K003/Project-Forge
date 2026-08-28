@@ -4,6 +4,8 @@
     <Project Path="src/ForgeOps.Api/ForgeOps.Api.csproj" />
     <Project Path="src/ForgeOps.Contracts/ForgeOps.Contracts.csproj" />
     <Project Path="src/ForgeOps.Demo/ForgeOps.Demo.csproj" />
+    <Project Path="src/ForgeOps.Forge.Sandbox/ForgeOps.Forge.Sandbox.csproj" />
+    <Project Path="src/ForgeOps.Forge/ForgeOps.Forge.csproj" />
     <Project Path="src/ForgeOps.Web/ForgeOps.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">

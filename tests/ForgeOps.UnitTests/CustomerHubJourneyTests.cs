@@ -1,12 +1,12 @@
-using ForgeOps.Contracts.Engineering;
+using ForgeOps.Contracts.Forge;
 using ForgeOps.Contracts.Journey;
 using ForgeOps.Demo;
 
 namespace ForgeOps.UnitTests;
 
 /// <summary>
-/// Demo Mode must always tell the complete §4 story (ProjectForge.md §9A.2). These guard
-/// the bundled fixture against accidental gaps.
+/// Demo Mode must always tell the complete §4 story including generate → audit → run
+/// (ProjectForge.md §9A.2). These guard the bundled fixture against accidental gaps.
 /// </summary>
 public sealed class CustomerHubJourneyTests
 {
@@ -21,17 +21,33 @@ public sealed class CustomerHubJourneyTests
     }
 
     [Fact]
-    public void Has_at_least_one_blocking_quality_gate_failure()
+    public void Generates_an_implementation_with_an_impl_file_and_a_test_file()
     {
-        var gates = Journey.Steps.Single(s => s.Kind == JourneyStepKind.QualityGates).Payload.Gates!;
-        Assert.Contains(gates, g => g is { Status: GateStatus.Failed, Blocking: true });
+        var impl = Journey.Steps.Single(s => s.Kind == JourneyStepKind.Implementation).Payload.Implementation!;
+        Assert.Contains(impl.Files, f => f.Role == GeneratedFileRole.Implementation);
+        Assert.Contains(impl.Files, f => f.Role == GeneratedFileRole.Test);
     }
 
     [Fact]
-    public void All_gates_pass_after_the_fix()
+    public void The_recorded_audit_permits_execution()
     {
-        var gates = Journey.Steps.Single(s => s.Kind == JourneyStepKind.Merge).Payload.Gates!;
-        Assert.All(gates, g => Assert.Equal(GateStatus.Passed, g.Status));
+        var audit = Journey.Steps.Single(s => s.Kind == JourneyStepKind.Audit).Payload.Audit!;
+        Assert.True(audit.Compiled);
+        Assert.Empty(audit.BannedApis);
+        Assert.True(audit.ExecutionAllowed);
+    }
+
+    [Fact]
+    public void Every_acceptance_criterion_is_satisfied_by_an_executed_test()
+    {
+        var run = Journey.Steps.Single(s => s.Kind == JourneyStepKind.AcceptanceRun).Payload;
+        Assert.NotNull(run.CanonicalTestRun);
+        Assert.True(run.CanonicalTestRun!.AllPassed);
+        Assert.All(run.Acceptance!, a =>
+        {
+            Assert.Equal(AcceptanceStatus.Satisfied, a.Status);
+            Assert.NotEmpty(a.EvidenceTests);
+        });
     }
 
     [Fact]

@@ -1,0 +1,16 @@
+@* Minimal code surface — monospace, scrollable, line-numbered. No syntax highlighting
+   library (self-contained bundle, §6). *@
+
+<div class="codeblock">
+    <div class="codeblock__bar">
+        <span class="mono small">@Path</span>
+        <span class="chip small">@Role</span>
+    </div>
+    <pre class="codeblock__body"><code>@Content</code></pre>
+</div>
+
+@code {
+    [Parameter] public string Path { get; set; } = "";
+    [Parameter] public string Role { get; set; } = "";
+    [Parameter] public string Content { get; set; } = "";
+}
