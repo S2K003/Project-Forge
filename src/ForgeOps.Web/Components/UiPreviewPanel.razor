@@ -17,6 +17,10 @@
                     referrerpolicy="no-referrer"
                     class="uipreview__frame"></iframe>
         </div>
+        @if (_renderError is not null)
+        {
+            <div class="panel__pad small is-warn">Preview could not initialise: @_renderError</div>
+        }
     </div>
 
     @if (Preview.Checks.Count > 0)
@@ -84,17 +88,33 @@
     private List<UiCheckResult> _results = [];
     private bool _ran;
     private bool _allPassed;
+    private string? _renderError;
+    private bool _rendered;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || string.IsNullOrWhiteSpace(Preview.DocumentHtml))
+        if (_rendered || string.IsNullOrWhiteSpace(Preview.DocumentHtml))
         {
             return;
         }
 
-        _selfRef = DotNetObjectReference.Create(this);
-        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/forgePreview.js");
-        await _module.InvokeVoidAsync("render", _frame, BuildSrcDoc(), _nonce, _selfRef);
+        _rendered = true;
+        try
+        {
+            _selfRef = DotNetObjectReference.Create(this);
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/forgePreview.js");
+            await _module.InvokeVoidAsync("render", _frame, BuildSrcDoc(), _nonce, _selfRef);
+        }
+        catch (JSDisconnectedException)
+        {
+            // circuit gone — nothing to do
+        }
+        catch (Exception ex)
+        {
+            _renderError = ex.Message;
+            _ran = true;
+            StateHasChanged();
+        }
     }
 
     [JSInvokable]
@@ -103,7 +123,11 @@
         _results = [.. results];
         _ran = true;
         _allPassed = _results.Count > 0 && _results.All(r => r.Passed) && error is null;
-        await OnResults.InvokeAsync(_results);
+        try
+        {
+            await OnResults.InvokeAsync(_results);
+        }
+        catch (ObjectDisposedException) { }
         StateHasChanged();
     }
 
