@@ -32,6 +32,15 @@
         <a href="." class="reload">Reload</a>
         <span class="dismiss">✕</span>
     </div>
+
+    <script>
+        // Session-scoped marker for the front-door gate. sessionStorage clears on tab close.
+        window.forgeAuth = {
+            get: function (k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } },
+            set: function (k, v) { try { sessionStorage.setItem(k, v); } catch (e) { } },
+            clear: function (k) { try { sessionStorage.removeItem(k); } catch (e) { } }
+        };
+    </script>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
 </body>
 

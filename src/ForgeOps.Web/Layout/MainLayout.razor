@@ -1,3 +1,58 @@
 @inherits LayoutComponentBase
+@inject AuthService Auth
+@inject NavigationManager Nav
+@implements IDisposable
 
-@Body
+@if (!Auth.Initialized)
+{
+    <div class="loading-splash">
+        <div class="brand__mark">F</div>
+        <div class="loading-splash__bar"></div>
+        <div>Checking session</div>
+    </div>
+}
+else if (Auth.IsAuthenticated || OnLogin)
+{
+    @Body
+}
+
+@code {
+    private bool OnLogin =>
+        new Uri(Nav.Uri).AbsolutePath.Trim('/').Equals("login", StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Auth.Changed += OnAuthChanged;
+        Nav.LocationChanged += OnLocationChanged;
+        await Auth.InitializeAsync();
+        Guard();
+    }
+
+    private void OnAuthChanged() => InvokeAsync(() => { Guard(); StateHasChanged(); });
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+        => InvokeAsync(() => { Guard(); StateHasChanged(); });
+
+    private void Guard()
+    {
+        if (!Auth.Initialized)
+        {
+            return;
+        }
+
+        if (!Auth.IsAuthenticated && !OnLogin)
+        {
+            Nav.NavigateTo("login");
+        }
+        else if (Auth.IsAuthenticated && OnLogin)
+        {
+            Nav.NavigateTo("");
+        }
+    }
+
+    public void Dispose()
+    {
+        Auth.Changed -= OnAuthChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+}

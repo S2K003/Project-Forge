@@ -2,6 +2,7 @@
 @inject NavigationManager Nav
 @inject ForgeOpsWebOptions Options
 @inject AppModeService Mode
+@inject AuthService Auth
 
 <PageTitle>ForgeOps</PageTitle>
 
@@ -10,6 +11,7 @@
         <div class="eyebrow">
             <span class="brand__mark" style="--s:20px">F</span>
             <span>ForgeOps &mdash; Engineering Control Plane</span>
+            <button class="signout" type="button" style="margin-left:auto" @onclick="SignOut">Sign out</button>
         </div>
 
         <h1 class="landing__title">A requirement becomes a<br />governed engineering <em>record</em>.</h1>
@@ -63,5 +65,11 @@
         {
             Enter(AppMode.Live);
         }
+    }
+
+    private async Task SignOut()
+    {
+        await Auth.LogoutAsync();
+        Nav.NavigateTo("login");
     }
 }

@@ -1,4 +1,5 @@
 @inject NavigationManager Nav
+@inject AuthService Auth
 
 <div class="shell">
     <div class="shell__brand">
@@ -12,7 +13,10 @@
             <span class="topbar__project">@ProjectName</span>
             <span class="muted small mono">· @Environment</span>
         </div>
-        <ModeBadge />
+        <div class="row" style="gap:16px">
+            <ModeBadge />
+            <button class="signout" type="button" @onclick="SignOut">Sign out</button>
+        </div>
     </header>
 
     <nav class="shell__rail" aria-label="Sections">
@@ -63,6 +67,12 @@
     [Parameter] public EventCallback<JourneyStepKind> OnNavigate { get; set; }
 
     private string ModeRoot => Nav.Uri.Contains("/live", StringComparison.OrdinalIgnoreCase) ? "live" : "demo";
+
+    private async Task SignOut()
+    {
+        await Auth.LogoutAsync();
+        Nav.NavigateTo("login");
+    }
 
     private string CurrentJourneyKey
     {

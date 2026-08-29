@@ -333,6 +333,31 @@ h1:focus, h1:focus-visible, [tabindex="-1"]:focus { outline: none; }
 .btn--ghost { border-color: var(--rule-2); background: transparent; }
 .btn--ghost:hover { background: var(--paper-raised); color: var(--ink); border-color: var(--ink); }
 
+/* quiet sign-out — reads as a filed action, not a button */
+.signout {
+    font-family: var(--font-mono);
+    font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--ink-3);
+    background: none; border: 0;
+    border-bottom: 1px solid transparent;
+    padding: 2px 0; cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+.signout:hover { color: var(--ink); border-bottom-color: var(--ink); }
+
+/* --------------------------------------------------------------------------
+   Sign-in gate
+   -------------------------------------------------------------------------- */
+.authform { margin-top: 10px; }
+.authform .btn--primary { margin-top: 22px; }
+.authform__error {
+    margin: 14px 0 0;
+    padding-left: 11px;
+    border-left: 2px solid var(--fail);
+    color: var(--fail);
+    font-size: 13px;
+}
+
 /* --------------------------------------------------------------------------
    Inputs — form-field, heavy baseline, no glow
    -------------------------------------------------------------------------- */

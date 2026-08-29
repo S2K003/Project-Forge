@@ -17,6 +17,7 @@ var apiBase = string.IsNullOrWhiteSpace(options.ApiBaseUrl)
 builder.Services.AddScoped(_ => new HttpClient { BaseAddress = new Uri(apiBase) });
 
 builder.Services.AddScoped<ForgeOpsApiClient>();
+builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AppModeService>();
 builder.Services.AddScoped<AiBridgeMonitor>();
 builder.Services.AddScoped<JourneyPlayer>();
