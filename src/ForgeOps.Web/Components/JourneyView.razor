@@ -21,9 +21,9 @@
         {
             <div class="stepbody-enter" @key="Player.CurrentIndex">
                 <StepBody Step="Player.Current" Definition="Player.Definition" Mode="Player.Mode"
-                          RequirementText="Player.RequirementText" OnRequirementChanged="Player.SetRequirement"
+                          RequirementText="@Player.RequirementText" OnRequirementChanged="Player.SetRequirement"
                           OnUiResults="Player.SetUiResults"
-                          RefineFeedback="Player.RefineFeedback" OnRefineFeedbackChanged="Player.SetRefineFeedback"
+                          RefineFeedback="@Player.RefineFeedback" OnRefineFeedbackChanged="Player.SetRefineFeedback"
                           OnRefineAgain="RefineAgain" />
             </div>
         }
