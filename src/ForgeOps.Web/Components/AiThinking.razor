@@ -1,19 +1,17 @@
-<div class="panel panel--focus">
-    <div class="panel__pad">
-        <div class="thinking">
-            <span class="thinking__dots" aria-hidden="true"><i></i><i></i><i></i></span>
-            <span>@Label</span>
-        </div>
-        <div class="mt-3 stack" aria-hidden="true">
-            <div class="shimmer" style="height:14px;width:72%"></div>
-            <div class="shimmer" style="height:14px;width:54%"></div>
-            <div class="shimmer" style="height:14px;width:63%"></div>
-        </div>
-        <div class="small muted mt-2">@Sub</div>
+<div class="drafting" role="status" aria-live="polite">
+    <div class="drafting__label">
+        <span>@Label</span>
+        <span class="drafting__cursor" aria-hidden="true"></span>
     </div>
+    <div class="drafting__lines" aria-hidden="true">
+        <div class="drafting__line" style="width:78%"></div>
+        <div class="drafting__line" style="width:92%"></div>
+        <div class="drafting__line" style="width:64%"></div>
+    </div>
+    <div class="drafting__sub">@Sub</div>
 </div>
 
 @code {
     [Parameter] public string Label { get; set; } = "Working…";
-    [Parameter] public string Sub { get; set; } = "The interaction pattern is identical in Live and Demo Mode.";
+    [Parameter] public string Sub { get; set; } = "The interaction is identical in Live and Demo Mode — only the source of the answer differs.";
 }

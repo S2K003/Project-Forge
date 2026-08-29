@@ -1,26 +1,26 @@
-@* Evidence Rail (ProjectForge.md §23.6, §15): Finding → Evidence → Rule → Source → Decision. *@
+@* Marginalia (ProjectForge.md §23.6, §15): the evidence for the current step, set
+   as hanging annotations in the margin of the record — Finding → Evidence → Source →
+   Decision. *@
 
-<div class="panel panel--strong">
-    <div class="panel__head"><span class="panel__title">Evidence</span></div>
-    <div class="panel__pad">
-        @if (Nodes.Count == 0)
-        {
-            <div class="muted small">Evidence for this step appears here as it is produced.</div>
-        }
-        else
-        {
-            <div class="evrail">
-                @foreach (var n in Nodes)
-                {
-                    <div class="evrail__node @(n.IsDecision ? "is-decision" : null)">
-                        <div class="evrail__kicker">@n.Kicker</div>
-                        <div class="evrail__body @(n.Mono ? "mono" : null)">@n.Body</div>
-                    </div>
-                }
-            </div>
-        }
-    </div>
-</div>
+<aside class="margin" aria-label="Evidence for this step">
+    <div class="margin__head">Margin &mdash; evidence</div>
+    @if (Nodes.Count == 0)
+    {
+        <div class="margin__empty">Evidence for this step is recorded here as it is produced.</div>
+    }
+    else
+    {
+        <div class="margin__list">
+            @foreach (var n in Nodes)
+            {
+                <div class="margin__note @(n.IsDecision ? "is-decision" : null)">
+                    <div class="margin__kicker">@n.Kicker</div>
+                    <div class="margin__body @(n.Mono ? "mono" : null)">@n.Body</div>
+                </div>
+            }
+        </div>
+    }
+</aside>
 
 @code {
     public sealed record Node(string Kicker, string Body, bool Mono = false, bool IsDecision = false);

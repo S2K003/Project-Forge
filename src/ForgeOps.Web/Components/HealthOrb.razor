@@ -1,23 +1,23 @@
 @* Engineering Health Orb (ProjectForge.md §23.6, §14) — deterministic segments around the perimeter. *@
 
 <div class="orb" role="img" aria-label="Engineering health score @Score out of 100">
-    <svg width="168" height="168" viewBox="0 0 168 168">
-        <circle cx="84" cy="84" r="@Radius" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="10" />
+    <svg width="172" height="172" viewBox="0 0 172 172">
+        <circle cx="86" cy="86" r="@Radius" fill="none" stroke="var(--rule-2)" stroke-width="7" />
         @{
             double accum = 0;
         }
         @foreach (var seg in Segments())
         {
-            <circle cx="84" cy="84" r="@Radius" fill="none"
-                    stroke="@seg.Color" stroke-width="10" stroke-linecap="butt"
-                    stroke-dasharray="@Fmt(seg.Arc - 2) @Fmt(Circumference - seg.Arc + 2)"
+            <circle cx="86" cy="86" r="@Radius" fill="none"
+                    stroke="@seg.Color" stroke-width="7" stroke-linecap="butt"
+                    stroke-dasharray="@Fmt(seg.Arc - 2.5) @Fmt(Circumference - seg.Arc + 2.5)"
                     stroke-dashoffset="@Fmt(-accum)" />
             accum += seg.Arc;
         }
     </svg>
     <div class="orb__center">
         <div class="orb__score">@Score</div>
-        <div class="orb__label">HEALTH</div>
+        <div class="orb__label">Health</div>
     </div>
 </div>
 
@@ -25,7 +25,7 @@
     [Parameter] public int Score { get; set; }
     [Parameter] public IReadOnlyList<HealthComponent> Components { get; set; } = [];
 
-    private const double Radius = 74;
+    private const double Radius = 77;
     private double Circumference => 2 * Math.PI * Radius;
 
     private IEnumerable<(double Arc, string Color)> Segments()
@@ -44,9 +44,9 @@
 
     private static string ColorFor(int score) => score switch
     {
-        >= 85 => "#49cf89",
-        >= 70 => "#e6b450",
-        _ => "#f0556e"
+        >= 85 => "#1d6a49",
+        >= 70 => "#97650f",
+        _ => "#c5371c"
     };
 
     private static string Fmt(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);

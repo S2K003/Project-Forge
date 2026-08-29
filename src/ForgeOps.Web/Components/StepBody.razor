@@ -6,10 +6,10 @@
 }
 
 <div class="stack">
-    <div>
-        <h1 style="font-size:22px">@Step.Title</h1>
-        <p class="muted mt-1">@Step.Caption</p>
-    </div>
+    <header class="stephead">
+        <h1>@Step.Title</h1>
+        <p>@Step.Caption</p>
+    </header>
 
     @switch (Step.Kind)
     {
@@ -293,13 +293,14 @@
 
         case JourneyStepKind.Telemetry:
             <div class="panel panel--strong panel__pad">
-                <table style="width:100%;border-collapse:collapse">
+                <div class="panel__title">Pipeline telemetry</div>
+                <table class="ledger-table">
                     @foreach (var t in Step.Payload.Telemetry ?? [])
                     {
-                        <tr style="border-bottom:1px solid var(--glass-border)">
-                            <td class="mono small" style="padding:9px 0">@t.Metric</td>
-                            <td style="padding:9px 0;text-align:right"><strong>@t.Value</strong></td>
-                            <td class="muted small" style="padding:9px 0 9px 14px">@t.Detail</td>
+                        <tr>
+                            <td class="mono small">@t.Metric</td>
+                            <td style="text-align:right;white-space:nowrap"><strong>@t.Value</strong></td>
+                            <td class="muted small" style="padding-left:16px">@t.Detail</td>
                         </tr>
                     }
                 </table>

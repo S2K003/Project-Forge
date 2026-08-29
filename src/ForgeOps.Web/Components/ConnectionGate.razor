@@ -3,26 +3,26 @@
 @inject NavigationManager Nav
 
 <div class="gateoverlay" role="alertdialog" aria-modal="true" aria-labelledby="gate-title">
-    <div class="panel panel--focus panel__pad gatecard">
-        <div class="orb__label">Live Mode</div>
-        <h2 id="gate-title" class="is-fail">AI Bridge Offline</h2>
+    <div class="gatecard">
+        <div class="eyebrow">Live Mode &middot; connection required</div>
+        <h2 id="gate-title" class="is-fail">The AI Bridge is not responding</h2>
         <p class="muted mt-2">@Detail</p>
         <p class="small muted mt-2">
-            Live Mode requires a verified connection to the local model through the
-            AI Bridge. The developer's machine or tunnel is not reachable right now.
+            Live Mode needs a verified connection to the local model through the AI Bridge.
+            The developer's machine or tunnel is unreachable right now. Results are never faked here.
         </p>
 
-        <div class="row mt-3" style="justify-content:center">
+        <div class="row mt-3" style="gap:12px">
             <button class="btn" @onclick="OnRetry" disabled="@Retrying">
                 @(Retrying ? "Checking…" : "Retry connection")
             </button>
-            <button class="btn btn--ai" @onclick='() => Nav.NavigateTo("demo")'>
+            <button class="btn btn--primary" @onclick='() => Nav.NavigateTo("demo")'>
                 Switch to Demo Mode
             </button>
         </div>
 
         <p class="small muted mt-3">
-            Demo Mode replays the exact same CustomerHub walkthrough with seeded data — no live dependency.
+            Demo Mode replays the same walkthrough from a recorded engineering record &mdash; no live dependency.
         </p>
     </div>
 </div>

@@ -1,24 +1,23 @@
-@* Horizontal journey stepper — the visible spine of the §4 story. *@
+@* Journey progress — a fine tick strip across the top of the workspace. *@
 
-<div class="stepper" role="list">
-    @for (var i = 0; i < Steps.Count; i++)
-    {
-        var index = i;
-        var step = Steps[index];
-        <div class="stepnode @StateClass(step.State) @(index == CurrentIndex ? "is-active" : null)" role="listitem">
-            <button class="stepnode__bullet" title="@step.Title"
-                    aria-label="@step.Title"
+<div class="progressbar">
+    <div class="progressbar__meta">
+        <span>Phase <b>@(CurrentIndex + 1) / @Steps.Count</b>@(Current is not null ? $" · {Current.Title}" : null)</span>
+        <span>@CompleteCount complete</span>
+    </div>
+    <div class="ticks" role="list" aria-label="Journey progress">
+        @for (var i = 0; i < Steps.Count; i++)
+        {
+            var index = i;
+            var step = Steps[index];
+            <button type="button"
+                    class="tick @StateClass(step.State) @(index == CurrentIndex ? "is-active" : null)"
+                    title="@($"{index + 1}. {step.Title}")"
+                    aria-label="@($"Step {index + 1}: {step.Title}")"
                     disabled="@(step.State == JourneyStepState.Locked)"
-                    @onclick="() => OnSelect.InvokeAsync(index)">
-                @(step.State == JourneyStepState.Complete ? "✓" : (index + 1).ToString())
-            </button>
-            <span class="stepnode__label">@step.Title</span>
-            @if (index < Steps.Count - 1)
-            {
-                <span class="stepnode__rail"></span>
-            }
-        </div>
-    }
+                    @onclick="() => OnSelect.InvokeAsync(index)"></button>
+        }
+    </div>
 </div>
 
 @code {
@@ -26,10 +25,12 @@
     [Parameter] public int CurrentIndex { get; set; }
     [Parameter] public EventCallback<int> OnSelect { get; set; }
 
+    private JourneyStep? Current => CurrentIndex >= 0 && CurrentIndex < Steps.Count ? Steps[CurrentIndex] : null;
+    private int CompleteCount => Steps.Count(s => s.State == JourneyStepState.Complete);
+
     private static string? StateClass(JourneyStepState state) => state switch
     {
         JourneyStepState.Complete => "is-complete",
-        JourneyStepState.Active => "is-active",
         JourneyStepState.Blocked => "is-blocked",
         _ => null
     };

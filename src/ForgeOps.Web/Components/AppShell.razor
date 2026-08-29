@@ -3,40 +3,49 @@
 <div class="shell">
     <div class="shell__brand">
         <div class="brand__mark">F</div>
-        <div class="brand__name">ForgeOps<span> / control</span></div>
+        <div class="brand__name">ForgeOps <span>Control Plane</span></div>
     </div>
 
     <header class="shell__topbar">
         <div class="topbar__context">
-            <span>Project</span>
+            <span>Record</span>
             <span class="topbar__project">@ProjectName</span>
-            <span class="muted small">· @Environment</span>
+            <span class="muted small mono">· @Environment</span>
         </div>
         <ModeBadge />
     </header>
 
     <nav class="shell__rail" aria-label="Sections">
         <div class="nav__section">Journey</div>
-        @foreach (var item in _navItems)
-        {
-            <a class="nav__link @(item.Kind == ActiveKind ? "active" : null)"
-               href="@ModeRoot" @onclick="() => OnNavigate.InvokeAsync(item.Kind)" @onclick:preventDefault>
-                <span class="nav__dot"></span>@item.Label
-            </a>
-        }
+        <div class="nav__group nav__group--phases">
+            @{ var activeIndex = Array.FindIndex(_navItems, x => x.Kind == ActiveKind); }
+            @for (var i = 0; i < _navItems.Length; i++)
+            {
+                var item = _navItems[i];
+                var state = activeIndex >= 0 && i < activeIndex ? "done" : item.Kind == ActiveKind ? "active" : null;
+                <a class="nav__link @state"
+                   href="@ModeRoot" @onclick="() => OnNavigate.InvokeAsync(item.Kind)" @onclick:preventDefault>
+                    <span class="nav__num">@((i + 1).ToString("00"))</span>
+                    <span>@item.Label</span>
+                </a>
+            }
+        </div>
 
-        <div class="nav__section mt-3">Scenario</div>
-        @foreach (var j in ForgeOps.Demo.JourneyCatalog.All)
-        {
-            <a class="nav__link @(j.Key == CurrentJourneyKey ? "active" : null)" href="@($"{ModeRoot}/{j.Key}")">
-                <span class="nav__dot"></span>
-                <span>@j.Name<br /><span class="muted small">@j.Blurb</span></span>
-            </a>
-        }
+        <div class="nav__section">Scenario</div>
+        <div class="nav__group">
+            @foreach (var j in ForgeOps.Demo.JourneyCatalog.All)
+            {
+                <a class="nav__link nav__link--plain @(j.Key == CurrentJourneyKey ? "active" : null)" href="@($"{ModeRoot}/{j.Key}")">
+                    <span>@j.Name<span class="nav__sub">@j.Blurb</span></span>
+                </a>
+            }
+        </div>
 
-        <div class="nav__section mt-3">Modes</div>
-        <a class="nav__link" href="demo">◆ Demo Mode</a>
-        <a class="nav__link" href="live">● Live Mode</a>
+        <div class="nav__section">Mode</div>
+        <div class="nav__group">
+            <a class="nav__link nav__link--plain @(ModeRoot == "demo" ? "active" : null)" href="demo">Demo &mdash; recorded</a>
+            <a class="nav__link nav__link--plain @(ModeRoot == "live" ? "active" : null)" href="live">Live &mdash; real model</a>
+        </div>
     </nav>
 
     <main class="shell__main">
@@ -66,14 +75,14 @@
 
     private readonly (JourneyStepKind Kind, string Label)[] _navItems =
     [
-        (JourneyStepKind.Requirement, "Requirements"),
+        (JourneyStepKind.Requirement, "Requirement"),
         (JourneyStepKind.Specification, "Specification"),
         (JourneyStepKind.Implementation, "Implementation"),
         (JourneyStepKind.Audit, "Audit"),
-        (JourneyStepKind.QualityGates, "Quality"),
-        (JourneyStepKind.AiReview, "AI Activity"),
-        (JourneyStepKind.HumanDecision, "Decisions"),
-        (JourneyStepKind.AcceptanceRun, "Run & Verify"),
+        (JourneyStepKind.QualityGates, "Quality gates"),
+        (JourneyStepKind.AiReview, "AI review"),
+        (JourneyStepKind.HumanDecision, "Decision"),
+        (JourneyStepKind.AcceptanceRun, "Run & verify"),
         (JourneyStepKind.EngineeringHealth, "Health"),
     ];
 }

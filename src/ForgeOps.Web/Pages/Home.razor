@@ -7,41 +7,45 @@
 
 <div class="landing">
     <div class="landing__inner">
-        <div class="row" style="justify-content:center">
-            <div class="brand__mark" style="width:34px;height:34px;font-size:17px">F</div>
-            <span class="brand__name" style="font-size:18px">ForgeOps</span>
+        <div class="eyebrow">
+            <span class="brand__mark" style="--s:20px">F</span>
+            <span>ForgeOps &mdash; Engineering Control Plane</span>
         </div>
 
-        <h1 class="landing__title mt-3">Mission control for AI-assisted engineering</h1>
+        <h1 class="landing__title">A requirement becomes a<br />governed engineering <em>record</em>.</h1>
         <p class="landing__sub">
-            Requirements become governed, testable, reviewable work — with deterministic evidence and
-            human judgment kept above every AI recommendation.
+            Specification, generated code, deterministic audit, execution, refinement &mdash; each step
+            written down with its evidence, and human judgment kept above every AI recommendation.
         </p>
 
         <div class="modecards">
-            <div class="panel modecard" @onclick='() => Enter(AppMode.Demo)'>
-                <h3 class="is-ai">◆ Demo Mode</h3>
+            <div class="modecard" @onclick='() => Enter(AppMode.Demo)'>
+                <div class="modecard__no">01</div>
+                <h3 class="is-ai">Demo</h3>
                 <p>
-                    Watch a UI requirement become a rendered component: spec → generated HTML →
-                    deterministic audit → <strong>rendered live in a sandboxed iframe</strong> → checks.
-                    Seeded recordings, no backend, no network — works anywhere, every time.
+                    The full walkthrough replayed from a recorded record &mdash; a complex UI requirement
+                    generated, audited, rendered in a sandboxed frame, then refined. No backend, no
+                    network. Works anywhere, every time.
                 </p>
-                <div class="chip is-ai mt-2">Always available</div>
+                <span class="chip is-ai">Always available</span>
             </div>
 
-            <div class="panel modecard @(Options.HasApi ? null : "is-disabled")"
+            <div class="modecard @(Options.HasApi ? null : "is-disabled")"
                  @onclick="EnterLive" style="@(Options.HasApi ? null : "opacity:.5;cursor:not-allowed")">
-                <h3 class="is-info">● Live Mode</h3>
+                <div class="modecard__no">02</div>
+                <h3 class="is-info">Live</h3>
                 <p>
-                    The real thing: the local coding model builds the component through the AI Bridge,
-                    ForgeOps audits and renders it. Requires a verified bridge connection — losing it locks the app.
+                    The real thing: the local coding model builds the artefact through the AI Bridge,
+                    ForgeOps audits and renders it. A verified bridge connection is required &mdash;
+                    losing it locks the app.
                 </p>
-                <div class="chip mt-2">@(Options.HasApi ? "Requires AI Bridge" : "No API configured for this deploy")</div>
+                <span class="chip @(Options.HasApi ? "is-info" : "is-muted")">@(Options.HasApi ? "Requires AI Bridge" : "No API on this deploy")</span>
             </div>
         </div>
 
-        <p class="small muted mt-4">
-            Two scenarios inside — a UI component and a backend rule. Same journey, same components in both modes.
+        <p class="small muted mt-4 mono">
+            Three scenarios inside &mdash; two UI components, one backend rule. Same journey, same
+            record, in both modes.
         </p>
     </div>
 </div>

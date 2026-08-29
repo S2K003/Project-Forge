@@ -10,23 +10,23 @@
         <span class="modebadge__dot"></span>
         @if (down)
         {
-            <text>LIVE — AI BRIDGE OFFLINE</text>
+            <text>Live · bridge offline</text>
         }
         else if (Bridge.Connection == BridgeConnection.Connected)
         {
-            <text>LIVE — AI BRIDGE CONNECTED</text>
+            <text>Live · bridge connected</text>
         }
         else
         {
-            <text>LIVE — CHECKING BRIDGE…</text>
+            <text>Live · checking bridge</text>
         }
     </span>
 }
 else if (Mode.Current == AppMode.Demo)
 {
-    <span class="modebadge modebadge--demo" role="status" aria-label="Demo Mode, simulated data">
+    <span class="modebadge modebadge--demo" role="status" aria-label="Demo Mode, recorded data">
         <span class="modebadge__dot"></span>
-        DEMO MODE — SIMULATED DATA
+        Demo · recorded
     </span>
 }
 

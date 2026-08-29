@@ -5,13 +5,13 @@
 
 @if (_error is not null)
 {
-    <div class="panel panel__pad is-fail mt-2" role="alert">
+    <div class="panel panel--focus panel__pad is-fail mt-2" role="alert">
         <strong>Live AI call failed.</strong> @_error
         <div class="small muted mt-1">Deterministic steps are unaffected. Retry, or switch to Demo Mode for the full recorded walkthrough.</div>
     </div>
 }
 
-<div class="grid mt-3" style="grid-template-columns: minmax(0, 1fr) 320px;">
+<div class="workspace--split" style="display:grid; grid-template-columns: minmax(0, 1fr) 262px; gap: 52px; align-items: start;">
     <div>
         @if (Player.IsThinking)
         {
@@ -19,28 +19,30 @@
         }
         else
         {
-            <StepBody Step="Player.Current" Definition="Player.Definition" Mode="Player.Mode"
-                      RequirementText="Player.RequirementText" OnRequirementChanged="Player.SetRequirement"
-                      OnUiResults="Player.SetUiResults"
-                      RefineFeedback="Player.RefineFeedback" OnRefineFeedbackChanged="Player.SetRefineFeedback"
-                      OnRefineAgain="RefineAgain" />
+            <div class="stepbody-enter" @key="Player.CurrentIndex">
+                <StepBody Step="Player.Current" Definition="Player.Definition" Mode="Player.Mode"
+                          RequirementText="Player.RequirementText" OnRequirementChanged="Player.SetRequirement"
+                          OnUiResults="Player.SetUiResults"
+                          RefineFeedback="Player.RefineFeedback" OnRefineFeedbackChanged="Player.SetRefineFeedback"
+                          OnRefineAgain="RefineAgain" />
+            </div>
         }
 
-        <div class="row mt-4">
-            <button class="btn" @onclick="Back" disabled="@(Player.CurrentIndex == 0 || Player.IsThinking)">← Back</button>
+        <div class="row mt-4" style="gap:14px; padding-top:20px; border-top:1px solid var(--rule);">
+            <button class="btn btn--ghost" @onclick="Back" disabled="@(Player.CurrentIndex == 0 || Player.IsThinking)">&larr;&nbsp; Back</button>
 
             @if (Player.IsLastStep)
             {
-                <button class="btn" @onclick="Restart" disabled="@Player.IsThinking">↻ Restart walkthrough</button>
+                <button class="btn" @onclick="Restart" disabled="@Player.IsThinking">Restart walkthrough</button>
             }
             else
             {
                 <button class="btn btn--primary" @onclick="Next" disabled="@Player.IsThinking">
-                    @NextLabel →
+                    @NextLabel &nbsp;&rarr;
                 </button>
             }
 
-            <span class="muted small">Step @(Player.CurrentIndex + 1) of @Player.Steps.Count</span>
+            <span class="muted mono small" style="margin-left:auto">@(Player.CurrentIndex + 1) / @Player.Steps.Count</span>
         </div>
     </div>
 
