@@ -20,6 +20,7 @@ public sealed class RequirementClassifierTests
     [InlineData("Design a sign-in form with email and password fields and a submit button.")]
     [InlineData("Show a weekly workout plan as a card with 5 day rows and a progress count.")]
     [InlineData("A pricing table with three plans and a highlighted recommended tier.")]
+    [InlineData("Build an operator dashboard for a multi-level parking structure — a responsive control-room screen. Show every bay as a live status grid with dark styling.")]
     public void Ui_requirements_classify_as_web_component(string requirement) =>
         Assert.Equal(ImplementationKind.WebComponent, RequirementClassifier.Classify(requirement));
 }
@@ -117,13 +118,83 @@ public sealed class LoyaltyCardJourneyTests
     }
 
     [Fact]
-    public void Catalog_exposes_both_journeys_and_defaults_to_the_ui_walkthrough()
+    public void Catalog_exposes_every_journey_and_defaults_to_the_parking_deck_console()
     {
-        Assert.Contains(JourneyCatalog.All, j => j.Key == "customerhub" && j.Kind == ImplementationKind.CSharpLogic);
+        Assert.Contains(JourneyCatalog.All, j => j.Key == "parking-deck" && j.Kind == ImplementationKind.WebComponent);
         Assert.Contains(JourneyCatalog.All, j => j.Key == "loyalty-card" && j.Kind == ImplementationKind.WebComponent);
+        Assert.Contains(JourneyCatalog.All, j => j.Key == "customerhub" && j.Kind == ImplementationKind.CSharpLogic);
 
-        Assert.Equal("loyalty-card", JourneyCatalog.DefaultKey);
+        Assert.Equal("parking-deck", JourneyCatalog.DefaultKey);
         Assert.Equal(ImplementationKind.WebComponent, JourneyCatalog.Build(null).Kind);
+        Assert.Equal("parking-deck", JourneyCatalog.Build(null).ProjectKey);
+        Assert.Equal(ImplementationKind.WebComponent, JourneyCatalog.Build("loyalty-card").Kind);
         Assert.Equal(ImplementationKind.CSharpLogic, JourneyCatalog.Build("customerhub").Kind);
+    }
+}
+
+public sealed class ParkingDeckJourneyTests
+{
+    private static readonly JourneyDefinition Journey = ParkingDeckJourney.Build();
+
+    private static string Html(JourneyStepKind kind) =>
+        Journey.Steps.Single(s => s.Kind == kind).Payload.Ui!.DocumentHtml;
+
+    [Fact]
+    public void Is_a_web_component_journey_covering_every_step_kind()
+    {
+        Assert.Equal(ImplementationKind.WebComponent, Journey.Kind);
+        Assert.Equal(Enum.GetValues<JourneyStepKind>(), Journey.Steps.Select(s => s.Kind).ToArray());
+    }
+
+    [Fact]
+    public void The_spec_has_six_testable_acceptance_criteria()
+    {
+        var spec = Journey.Steps.Single(s => s.Kind == JourneyStepKind.Specification).Payload.Specification!;
+        Assert.Equal(6, spec.AcceptanceCriteria.Count);
+    }
+
+    [Fact]
+    public void Both_generated_versions_pass_the_deterministic_audit()
+    {
+        foreach (var kind in new[] { JourneyStepKind.AcceptanceRun, JourneyStepKind.Refine })
+        {
+            var report = GeneratedCodeAuditor.AuditWebComponent(Html(kind), 0);
+            Assert.True(report.ExecutionAllowed, string.Join("; ", report.BannedApis.Select(b => $"{b.Api} @ {b.Line}")));
+        }
+    }
+
+    [Fact]
+    public void The_run_step_carries_a_renderable_console_with_six_checks()
+    {
+        var ui = Journey.Steps.Single(s => s.Kind == JourneyStepKind.AcceptanceRun).Payload.Ui!;
+        Assert.False(string.IsNullOrWhiteSpace(ui.DocumentHtml));
+        Assert.Equal(6, ui.Checks.Count);
+        Assert.All(ui.Checks, c => Assert.False(string.IsNullOrWhiteSpace(c.Script)));
+    }
+
+    [Fact]
+    public void The_first_attempt_miscounts_availability_and_the_refinement_corrects_it()
+    {
+        var draft = Html(JourneyStepKind.AcceptanceRun);
+        var final = Html(JourneyStepKind.Refine);
+
+        // The only behavioural difference is the availability rule.
+        Assert.Contains("state !== 'occupied'", draft);
+        Assert.DoesNotContain("state !== 'occupied'", final);
+        Assert.Contains("state === 'free'", final);
+
+        var refine = Journey.Steps.Single(s => s.Kind == JourneyStepKind.Refine).Payload;
+        Assert.NotNull(refine.Refinement);
+        Assert.True(refine.Refinement!.AllCriteriaMet);
+        Assert.Contains("AC-2", refine.Refinement.AddressedCriteria);
+        Assert.Contains("AC-6", refine.Refinement.AddressedCriteria);
+    }
+
+    [Fact]
+    public void Every_recorded_ai_interaction_is_flagged_simulated()
+    {
+        var interactions = Journey.Steps.Select(s => s.Payload.AiInteraction).Where(i => i is not null).ToArray();
+        Assert.NotEmpty(interactions);
+        Assert.All(interactions, i => Assert.True(i!.Simulated));
     }
 }

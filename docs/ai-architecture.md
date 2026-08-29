@@ -111,9 +111,8 @@ packet doesn't flap the UI).
 - **Live Mode** — the app locks behind the Connection Gate with a clear status and a
   one-click **Switch to Demo Mode**. AI results are never faked here (§9.3).
 - **Demo Mode** — unaffected. It has no dependency on the bridge, the API, or the
-  network; the CustomerHub journey is compiled into the WASM bundle
-  (`ForgeOps.Demo/CustomerHubJourney.cs`) and every AI step is a clearly-labelled
-  recording.
+  network; every journey is compiled into the WASM bundle
+  (`ForgeOps.Demo/*Journey.cs`) and every AI step is a clearly-labelled recording.
 
 ## From specification to running code
 

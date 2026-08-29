@@ -27,22 +27,36 @@ Same journey, same components, same UI — only the data source and the mode bad
 
 ## The journey
 
-Two seeded scenarios ship, switchable in the nav; Demo/Live Mode **opens on the UI one**.
-In **Live Mode the requirement is an editable text box** — type whatever you want to build
-and ForgeOps classifies and runs it.
+Three seeded scenarios ship, switchable in the nav; Demo/Live Mode **opens on the
+parking-deck one**. In **Live Mode the requirement is an editable text box** — type
+whatever you want to build and ForgeOps classifies and runs it.
 
-### Loyalty status card — a UI requirement *(default)*
+### Parking-deck operator console — a complex UI requirement *(default)*
+
+> *"Build an operator dashboard for a multi-level parking structure — a responsive
+> control-room screen. Show every bay across three decks as a live status grid (free,
+> occupied, reserved, EV-charging, accessible) with a running occupancy meter. An
+> attendant can assign a licence plate to a free bay, release a bay, and read each ticket's
+> dwell time and running charge — first 15 minutes free, then metered per hour with a
+> daily cap. Call out any deck with no free bays."*
+
+Sign in → requirement → **AI specification** (six acceptance criteria) → human review →
+**AI implementation** (the local coding model writes the whole console — 44 bays, live
+timers, click-to-assign, metered ticket — as one self-contained HTML file) →
+**deterministic audit** (`HtmlAuditor` — no network / storage / `eval` / external
+resources; a hit blocks rendering) → quality gates → **AI review** → **human decision** →
+**run & verify** (**the console is rendered and driven in a locked-down sandboxed
+iframe**, and six behavioural self-checks run against it) → **AI refinement** (the first
+attempt counts reserved bays as available — AC-2 — which also stops any deck ever showing
+FULL — AC-6; the AI regenerates it with the corrected rule and ForgeOps re-audits and
+re-renders, 6/6) → merge → telemetry → **engineering health**.
+
+### Loyalty status card — a compact UI requirement
 
 > *"Show a customer's loyalty status as a compact card: points balance, tier, and the last three activity entries."*
 
-Sign in → requirement → **AI specification** → human review → **AI implementation**
-(the local coding model writes a self-contained HTML component) → **deterministic audit**
-(`HtmlAuditor` — no network / storage / `eval` / external resources; a hit blocks
-rendering) → quality gates → **AI review** → **human decision** → **run & verify**
-(**the component is rendered live in a locked-down sandboxed iframe**, and the model's
-behavioural self-checks run against it) → **AI refinement** (the first attempt omits the
-tier progress bar — AC-2; the AI regenerates the component to close it and ForgeOps
-re-audits and re-renders it) → merge → telemetry → **engineering health**.
+Same journey, smaller artefact: the first attempt omits the tier progress bar (AC-2); the
+AI adds it in one refinement round.
 
 ### Loyalty rules — a backend requirement
 
@@ -92,7 +106,7 @@ ForgeOps.Api            ASP.NET Core minimal API     ── deployed to a free-t
 ForgeOps.AI             AI Gateway · IAiProvider · OllamaBridgeProvider · CodeGenerator · validation · telemetry
 ForgeOps.Forge          Roslyn compile · banned-API audit · sandbox runner · canonical acceptance suite
 ForgeOps.Forge.Sandbox  the short-lived child process that executes generated tests
-ForgeOps.Demo           JourneyCatalog — LoyaltyCardJourney (UI) + CustomerHubJourney (logic)
+ForgeOps.Demo           JourneyCatalog — ParkingDeckJourney + LoyaltyCardJourney (UI) + CustomerHubJourney (logic)
 ForgeOps.Contracts      shared DTOs / enums
 ```
 
